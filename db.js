@@ -25,7 +25,7 @@ export function openDb(path = "./rtw.sqlite") {
       discord_id TEXT NOT NULL,
       leg_index INTEGER NOT NULL,
       completed_at TEXT NOT NULL,
-      source TEXT NOT NULL,
+      source TEXT NOT NULL, -- 'manual' or 'vatsim'
       dep TEXT NOT NULL,
       arr TEXT NOT NULL,
       PRIMARY KEY (guild_id, discord_id, leg_index)
@@ -35,10 +35,25 @@ export function openDb(path = "./rtw.sqlite") {
       guild_id TEXT NOT NULL,
       discord_id TEXT NOT NULL,
       vatsim_cid TEXT NOT NULL,
+      discord_name TEXT,
+      linked_at TEXT,
       PRIMARY KEY (guild_id, discord_id),
       UNIQUE (guild_id, vatsim_cid)
     );
   `);
+
+  // Lightweight migrations (safe if already applied)
+  try { db.exec(`ALTER TABLE guild_settings ADD COLUMN announce_channel_id TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE guild_settings ADD COLUMN daily_channel_id TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE guild_settings ADD COLUMN daily_time TEXT;`); } catch {}
+
+  try { db.exec(`ALTER TABLE completions ADD COLUMN source TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE completions ADD COLUMN dep TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE completions ADD COLUMN arr TEXT;`); } catch {}
+
+  // New: store friendly name + link timestamp
+  try { db.exec(`ALTER TABLE user_links ADD COLUMN discord_name TEXT;`); } catch {}
+  try { db.exec(`ALTER TABLE user_links ADD COLUMN linked_at TEXT;`); } catch {}
 
   return db;
 }
