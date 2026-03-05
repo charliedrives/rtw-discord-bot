@@ -3,20 +3,28 @@ import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 export const commands = [
   new SlashCommandBuilder()
     .setName("rtw_setup")
-    .setDescription("Setup RTW route (server-wide)")
+    .setDescription("Admin: load the RTW route into this server")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
     .setName("rtw_channel")
-    .setDescription("Admin: set the channel where completions are announced")
+    .setDescription("Admin: set the channel where leg completions are announced")
     .addChannelOption(o =>
       o.setName("channel").setDescription("Announcement channel").setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("rtw_daily_channel")
+    .setDescription("Admin: set the channel for the daily RTW update post")
+    .addChannelOption(o =>
+      o.setName("channel").setDescription("Daily update channel").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("rtw_next")
-    .setDescription("Show your next leg"),
+    .setDescription("Show your next RTW leg"),
 
   new SlashCommandBuilder()
     .setName("rtw_status")
@@ -37,6 +45,6 @@ export const commands = [
 
   new SlashCommandBuilder()
     .setName("vatsim_link")
-    .setDescription("Link your VATSIM CID (for auto logging later)")
+    .setDescription("Link your VATSIM CID (for future auto logging)")
     .addStringOption(o => o.setName("cid").setRequired(true).setDescription("VATSIM CID")),
 ].map(c => c.toJSON());
