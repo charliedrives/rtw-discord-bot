@@ -322,6 +322,19 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "rtw_export_db") {
+
+  const file = "./rtw.sqlite";
+
+  await interaction.reply({
+    content: "📦 RTW Database Export",
+    files: [file],
+    ephemeral: true
+  });
+
+  return;
+}
+
     // fallback
     await interaction.reply({ content: "Unknown command.", ephemeral: true });
   } catch (err) {
