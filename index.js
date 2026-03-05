@@ -92,7 +92,7 @@ client.on("interactionCreate", async (interaction) => {
         content: `❌ Not your next leg.\nYour next leg is **${next.leg_index}: ${next.from_icao} → ${next.to_icao}**`,
         ephemeral: true
       });
-      return;
+      return; 
     }
 
     db.prepare(
