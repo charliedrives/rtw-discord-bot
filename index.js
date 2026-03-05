@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { Client, GatewayIntentBits } from "discord.js";
 import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
+import { startVatsimAutoTracking } from "./vatsimPoller.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
