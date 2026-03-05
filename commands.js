@@ -15,6 +15,10 @@ export const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+  .setName("rtw_route")
+  .setDescription("Show the full RTW route"),
+
+  new SlashCommandBuilder()
     .setName("rtw_daily_channel")
     .setDescription("Admin: set the channel for the daily RTW update post")
     .addChannelOption(o =>
