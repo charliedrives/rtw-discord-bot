@@ -136,6 +136,16 @@ async function postDailyUpdates() {
 client.once("ready", () => {
   console.log(`Bot online: ${client.user.tag}`);
 
+    startVatsimAutoTracking({
+      db,
+      getNextLeg,
+      onLegCompleted: async ({ guildId, discordId, legIndex, dep, arr, source }) => {
+        // Reuse your existing announcement function
+        await announceCompletion({ guildId, discordId, legIndex, dep, arr, source });
+      },
+      intervalMs: 120000, // 2 minutes
+    });
+
   // Daily at 09:00 Europe/London (DST-safe)
   cron.schedule("0 9 * * *", postDailyUpdates, { timezone: "Europe/London" });
 });
