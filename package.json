@@ -4,7 +4,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node registerCommands.js",
     "register": "node registerCommands.js"
   },
   "dependencies": {
