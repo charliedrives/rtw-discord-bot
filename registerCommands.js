@@ -12,7 +12,6 @@ if (!token || !clientId || !guildId) {
 
 const rest = new REST({ version: "10" }).setToken(token);
 
-// Register commands ONLY for this server (updates instantly)
 await rest.put(
   Routes.applicationGuildCommands(clientId, guildId),
   { body: commands }
