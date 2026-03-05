@@ -231,6 +231,30 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "rtw_route") {
+      await interaction.deferReply();
+
+      const rows = db
+        .prepare(
+          `
+          SELECT leg_index, from_icao, to_icao
+          FROM route_legs
+          WHERE guild_id=?
+          ORDER BY leg_index
+        `
+        )
+        .all(guildId);
+
+      if (!rows.length) {
+        await interaction.editReply("⚠️ Route not loaded yet. Run /rtw_setup.");
+        return;
+      }
+
+      const lines = rows.map((r) => `${r.leg_index}. ${r.from_icao} → ${r.to_icao}`);
+      await interaction.editReply(`🌍 **RTW Route (${rows.length} legs)**\n\n${lines.join("\n")}`);
+      return;
+    }
+
     if (interaction.commandName === "rtw_next") {
       const total = db
         .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
@@ -327,31 +351,6 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    // ✅ Correct placement: rtw_route is top-level (NOT inside leaderboard)
-    if (interaction.commandName === "rtw_route") {
-      await interaction.deferReply();
-
-      const rows = db
-        .prepare(
-          `
-          SELECT leg_index, from_icao, to_icao
-          FROM route_legs
-          WHERE guild_id=?
-          ORDER BY leg_index
-        `
-        )
-        .all(guildId);
-
-      if (!rows.length) {
-        await interaction.editReply("⚠️ Route not loaded yet. Run /rtw_setup.");
-        return;
-      }
-
-      const lines = rows.map((r) => `${r.leg_index}. ${r.from_icao} → ${r.to_icao}`);
-      await interaction.editReply(`🌍 **RTW Route (${rows.length} legs)**\n\n${lines.join("\n")}`);
-      return;
-    }
-
     if (interaction.commandName === "rtw_check") {
       const dep = interaction.options.getString("dep", true).toUpperCase().trim();
       const arr = interaction.options.getString("arr", true).toUpperCase().trim();
@@ -391,30 +390,112 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    // ---- VATSIM identity improvements ----
     if (interaction.commandName === "vatsim_link") {
       const cid = interaction.options.getString("cid", true).trim();
 
+      if (!/^\d{4,8}$/.test(cid)) {
+        await interaction.reply({ content: "❌ CID should be numeric (e.g. 1234567).", ephemeral: true });
+        return;
+      }
+
+      const displayName =
+        interaction.member?.nickname ||
+        interaction.user.globalName ||
+        interaction.user.username;
+
       db.prepare(
         `
-        INSERT OR REPLACE INTO user_links (guild_id, discord_id, vatsim_cid)
-        VALUES (?,?,?)
+        INSERT OR REPLACE INTO user_links
+        (guild_id, discord_id, vatsim_cid, discord_name, linked_at)
+        VALUES (?,?,?,?,datetime('now'))
       `
-      ).run(guildId, userId, cid);
+      ).run(guildId, userId, cid, displayName);
 
-      await interaction.reply({ content: `✅ VATSIM CID linked: **${cid}**`, ephemeral: true });
+      await interaction.reply({ content: `✅ Linked VATSIM CID **${cid}** to <@${userId}>`, ephemeral: true });
       return;
     }
 
-    // ✅ Correct placement: rtw_export_db is top-level
+    if (interaction.commandName === "vatsim_me") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const row = db.prepare(
+        `
+        SELECT vatsim_cid, discord_name, linked_at
+        FROM user_links
+        WHERE guild_id=? AND discord_id=?
+      `
+      ).get(guildId, userId);
+
+      if (!row) {
+        await interaction.editReply("🛰️ You haven’t linked a VATSIM CID yet. Use **/vatsim_link**.");
+        return;
+      }
+
+      await interaction.editReply(`🛰️ Linked CID: **${row.vatsim_cid}** ✅\nName: **${row.discord_name || "n/a"}**\nLinked at: ${row.linked_at || "n/a"} UTC`);
+      return;
+    }
+
+    if (interaction.commandName === "vatsim_unlink") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const row = db.prepare(
+        `
+        SELECT vatsim_cid
+        FROM user_links
+        WHERE guild_id=? AND discord_id=?
+      `
+      ).get(guildId, userId);
+
+      if (!row) {
+        await interaction.editReply("🛰️ You don’t have a VATSIM CID linked yet.");
+        return;
+      }
+
+      db.prepare(
+        `
+        DELETE FROM user_links
+        WHERE guild_id=? AND discord_id=?
+      `
+      ).run(guildId, userId);
+
+      await interaction.editReply(`✅ Unlinked VATSIM CID **${row.vatsim_cid}** from your account.`);
+      return;
+    }
+
+    if (interaction.commandName === "vatsim_pilots") {
+      await interaction.deferReply({ ephemeral: true });
+
+      const rows = db.prepare(
+        `
+        SELECT discord_id, vatsim_cid, discord_name, linked_at
+        FROM user_links
+        WHERE guild_id=?
+        ORDER BY linked_at DESC
+      `
+      ).all(guildId);
+
+      if (!rows.length) {
+        await interaction.editReply("No pilots have linked a VATSIM CID yet.");
+        return;
+      }
+
+      const header = `🛰️ **VATSIM Pilots Linked (${rows.length})**\n`;
+      const lines = rows.map(r => `• <@${r.discord_id}> (${r.discord_name || "unknown"}) — **${r.vatsim_cid}** — ${r.linked_at || "n/a"} UTC`);
+      const body = lines.join("\n");
+
+      const msg = (header + "\n" + body).slice(0, 1900);
+      await interaction.editReply(msg);
+      return;
+    }
+
     if (interaction.commandName === "rtw_export_db") {
       const file = "./rtw.sqlite";
-
       await interaction.reply({
         content: "📦 RTW Database Export",
         files: [file],
         ephemeral: true,
       });
-
       return;
     }
 
