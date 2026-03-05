@@ -1,3 +1,4 @@
+import cron from "node-cron";
 import { Client, GatewayIntentBits } from "discord.js";
 import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
@@ -5,17 +6,21 @@ import { RTW_ROUTE } from "./route.js";
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
 
+/** Ensure guild settings row exists */
 function ensureGuildRow(guildId) {
   db.prepare(`
-    INSERT INTO guild_settings (guild_id, announce_channel_id)
-    VALUES (?, NULL)
+    INSERT INTO guild_settings (guild_id, announce_channel_id, daily_channel_id, daily_time)
+    VALUES (?, NULL, NULL, NULL)
     ON CONFLICT(guild_id) DO NOTHING
   `).run(guildId);
 }
 
-function getAnnounceChannelId(guildId) {
-  return db.prepare(`SELECT announce_channel_id FROM guild_settings WHERE guild_id=?`)
-    .get(guildId)?.announce_channel_id || null;
+function getGuildSettings(guildId) {
+  return db.prepare(`
+    SELECT announce_channel_id, daily_channel_id, daily_time
+    FROM guild_settings
+    WHERE guild_id=?
+  `).get(guildId) || { announce_channel_id: null, daily_channel_id: null, daily_time: null };
 }
 
 function getNextLeg(guildId, discordId) {
@@ -27,130 +32,219 @@ function getNextLeg(guildId, discordId) {
         SELECT 1
         FROM completions c
         WHERE c.guild_id = rl.guild_id
-        AND c.discord_id = ?
-        AND c.leg_index = rl.leg_index
+          AND c.discord_id = ?
+          AND c.leg_index = rl.leg_index
       )
     ORDER BY rl.leg_index ASC
     LIMIT 1
   `).get(guildId, discordId);
 }
 
-async function announceCompletion({ guildId, discordId, legIndex, dep, arr }) {
-
-  const channelId = getAnnounceChannelId(guildId);
+async function announceCompletion({ guildId, discordId, legIndex, dep, arr, source }) {
+  const settings = getGuildSettings(guildId);
+  const channelId = settings.announce_channel_id;
   if (!channelId) return;
 
-  const channel = await client.channels.fetch(channelId).catch(() => null);
-  if (!channel) return;
+  const ch = await client.channels.fetch(channelId).catch(() => null);
+  if (!ch) return;
 
-  await channel.send(
-    `✅ <@${discordId}> completed **Leg ${legIndex}**: **${dep} → ${arr}**`
-  );
+  const vibe = source === "vatsim" ? "🛰️" : "📝";
+  await ch.send(`${vibe} ✅ <@${discordId}> just smashed **Leg ${legIndex}**: **${dep} → ${arr}**`);
+}
+
+function medal(i) {
+  if (i === 0) return "🥇";
+  if (i === 1) return "🥈";
+  if (i === 2) return "🥉";
+  return "🏁";
+}
+
+function buildDailyPost(guildId) {
+  const totalLegs = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c;
+
+  const leaderboard = db.prepare(`
+    SELECT discord_id, COUNT(*) AS completed
+    FROM completions
+    WHERE guild_id=?
+    GROUP BY discord_id
+    ORDER BY completed DESC
+    LIMIT 10
+  `).all(guildId);
+
+  const recent24h = db.prepare(`
+    SELECT COUNT(*) AS c
+    FROM completions
+    WHERE guild_id=?
+      AND completed_at >= datetime('now','-24 hours')
+  `).get(guildId).c;
+
+  const recent = db.prepare(`
+    SELECT discord_id, leg_index, dep, arr, completed_at, source
+    FROM completions
+    WHERE guild_id=?
+    ORDER BY completed_at DESC
+    LIMIT 5
+  `).all(guildId);
+
+  const lines = leaderboard.length
+    ? leaderboard.map((r, i) =>
+        `${medal(i)} <@${r.discord_id}> — **${r.completed}/${totalLegs}**`
+      ).join("\n")
+    : "_Nobody on the board yet… first flight gets the glory 😈_";
+
+  const recentLines = recent.length
+    ? recent.map(r => `• <@${r.discord_id}> — **Leg ${r.leg_index}** (${r.dep}→${r.arr}) ${r.source === "vatsim" ? "🛰️" : "📝"}`).join("\n")
+    : "_No completions logged yet._";
+
+  // A little hype line
+  const hype =
+    recent24h > 0
+      ? `🔥 **${recent24h}** legs logged in the last 24h. Absolute scenes.`
+      : `😴 Quiet day… someone go send it.`;
+
+  return `🌍✈️ **CHARLIE RTW DAILY UPDATE** ✈️🌍
+${hype}
+
+🏆 **LEADERBOARD (Top 10)**
+${lines}
+
+🕒 **LATEST WINS**
+${recentLines}
+
+🚀 Use **/rtw_next** to get your next mission.`;
+}
+
+async function postDailyUpdates() {
+  const guilds = db.prepare(`
+    SELECT guild_id, daily_channel_id
+    FROM guild_settings
+    WHERE daily_channel_id IS NOT NULL
+  `).all();
+
+  for (const g of guilds) {
+    const ch = await client.channels.fetch(g.daily_channel_id).catch(() => null);
+    if (!ch) continue;
+
+    const total = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(g.guild_id).c;
+    if (!total) continue; // don’t spam if route not set up
+
+    await ch.send(buildDailyPost(g.guild_id)).catch(() => null);
+  }
 }
 
 client.once("ready", () => {
   console.log(`Bot online: ${client.user.tag}`);
+
+  // Daily at 09:00 Europe/London (DST-safe)
+  cron.schedule("0 9 * * *", postDailyUpdates, { timezone: "Europe/London" });
 });
 
 client.on("interactionCreate", async (interaction) => {
-
   if (!interaction.isChatInputCommand()) return;
 
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
 
+  if (!guildId) {
+    await interaction.reply({ content: "Use this command in a server.", ephemeral: true });
+    return;
+  }
+
   ensureGuildRow(guildId);
 
   try {
-
     if (interaction.commandName === "rtw_setup") {
-
       await interaction.deferReply({ ephemeral: true });
 
       RTW_ROUTE.forEach((leg, i) => {
         db.prepare(`
-          INSERT OR IGNORE INTO route_legs
-          (guild_id, leg_index, from_icao, to_icao)
+          INSERT OR IGNORE INTO route_legs (guild_id, leg_index, from_icao, to_icao)
           VALUES (?,?,?,?)
         `).run(guildId, i + 1, leg[0], leg[1]);
       });
 
       await interaction.editReply("✅ RTW route loaded.");
-
       return;
     }
 
     if (interaction.commandName === "rtw_channel") {
+      const ch = interaction.options.getChannel("channel", true);
+      db.prepare(`UPDATE guild_settings SET announce_channel_id=? WHERE guild_id=?`).run(ch.id, guildId);
+      await interaction.reply(`✅ Completion announcements will post in ${ch}.`);
+      return;
+    }
 
-      const channel = interaction.options.getChannel("channel");
-
+    if (interaction.commandName === "rtw_daily_channel") {
+      const ch = interaction.options.getChannel("channel", true);
       db.prepare(`
         UPDATE guild_settings
-        SET announce_channel_id=?
+        SET daily_channel_id=?, daily_time=COALESCE(daily_time,'09:00')
         WHERE guild_id=?
-      `).run(channel.id, guildId);
+      `).run(ch.id, guildId);
 
-      await interaction.reply(`✅ Announcements will post in ${channel}`);
-
+      await interaction.reply(`✅ Daily RTW updates will post in ${ch} at **09:00 Europe/London**.`);
       return;
     }
 
     if (interaction.commandName === "rtw_next") {
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c;
+      if (!total) {
+        await interaction.reply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+        return;
+      }
 
       const next = getNextLeg(guildId, userId);
-
       if (!next) {
         await interaction.reply("🏁 You’ve completed all legs!");
         return;
       }
 
-      await interaction.reply(
-        `Next leg (**${next.leg_index}**): **${next.from_icao} → ${next.to_icao}**`
-      );
-
+      await interaction.reply(`Next leg (**${next.leg_index}**): **${next.from_icao} → ${next.to_icao}**`);
       return;
     }
 
     if (interaction.commandName === "rtw_status") {
-
       await interaction.deferReply();
 
       const target = interaction.options.getUser("user") || interaction.user;
 
-      const total = db.prepare(`
-        SELECT COUNT(*) AS c
-        FROM route_legs
-        WHERE guild_id=?
-      `).get(guildId).c;
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c;
+      if (!total) {
+        await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+        return;
+      }
 
       const done = db.prepare(`
-        SELECT COUNT(*) AS c
-        FROM completions
-        WHERE guild_id=? AND discord_id=?
+        SELECT COUNT(*) AS c FROM completions WHERE guild_id=? AND discord_id=?
       `).get(guildId, target.id).c;
 
       const next = getNextLeg(guildId, target.id);
+      const nextStr = next ? `Leg ${next.leg_index}: ${next.from_icao} → ${next.to_icao}` : "All done 🏁";
 
-      const nextText = next
-        ? `Leg ${next.leg_index}: ${next.from_icao} → ${next.to_icao}`
-        : "All done 🏁";
+      const last = db.prepare(`
+        SELECT leg_index, dep, arr, completed_at, source
+        FROM completions
+        WHERE guild_id=? AND discord_id=?
+        ORDER BY completed_at DESC
+        LIMIT 1
+      `).get(guildId, target.id);
 
-      await interaction.editReply(
-        `**${target.username}** — **${done}/${total}** legs\nNext: **${nextText}**`
-      );
+      const lastStr = last
+        ? `Last: Leg ${last.leg_index} (${last.dep}→${last.arr}) • ${last.source} • ${last.completed_at} UTC`
+        : "Last: (none yet)";
 
+      await interaction.editReply(`📊 **${target.username}** — **${done}/${total}**\n🎯 Next: **${nextStr}**\n${lastStr}`);
       return;
     }
 
     if (interaction.commandName === "rtw_leaderboard") {
-
       await interaction.deferReply();
 
-      const total = db.prepare(`
-        SELECT COUNT(*) AS c
-        FROM route_legs
-        WHERE guild_id=?
-      `).get(guildId).c;
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c;
+      if (!total) {
+        await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+        return;
+      }
 
       const rows = db.prepare(`
         SELECT discord_id, COUNT(*) AS completed
@@ -162,94 +256,69 @@ client.on("interactionCreate", async (interaction) => {
       `).all(guildId);
 
       if (!rows.length) {
-        await interaction.editReply("No completions yet.");
+        await interaction.editReply("Nobody on the board yet… first flight gets the glory 😈");
         return;
       }
 
-      const lines = rows.map((r, i) =>
-        `${i + 1}. <@${r.discord_id}> — **${r.completed}/${total}**`
-      );
-
-      await interaction.editReply(
-        `🏆 **RTW Leaderboard**\n${lines.join("\n")}`
-      );
-
+      const lines = rows.map((r, i) => `${medal(i)} <@${r.discord_id}> — **${r.completed}/${total}**`);
+      await interaction.editReply(`🏆 **RTW Leaderboard**\n${lines.join("\n")}`);
       return;
     }
 
     if (interaction.commandName === "rtw_check") {
+      const dep = interaction.options.getString("dep", true).toUpperCase().trim();
+      const arr = interaction.options.getString("arr", true).toUpperCase().trim();
 
-      const dep = interaction.options.getString("dep").toUpperCase();
-      const arr = interaction.options.getString("arr").toUpperCase();
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c;
+      if (!total) {
+        await interaction.reply({ content: "⚠️ Route not initialised here yet. Run **/rtw_setup**.", ephemeral: true });
+        return;
+      }
 
       const next = getNextLeg(guildId, userId);
-
       if (!next) {
-        await interaction.reply("🏁 You’ve completed the full route!");
+        await interaction.reply({ content: "🏁 You’ve already completed the full route!", ephemeral: true });
         return;
       }
 
       if (dep !== next.from_icao || arr !== next.to_icao) {
-
         await interaction.reply({
-          content: `❌ That is not your next leg.\nYour next leg is **${next.from_icao} → ${next.to_icao}**`,
+          content: `❌ Not your next leg.\nYour next leg is **${next.leg_index}: ${next.from_icao} → ${next.to_icao}**`,
           ephemeral: true
         });
-
         return;
       }
 
       db.prepare(`
-        INSERT OR IGNORE INTO completions
-        (guild_id, discord_id, leg_index, completed_at, source, dep, arr)
+        INSERT OR IGNORE INTO completions (guild_id, discord_id, leg_index, completed_at, source, dep, arr)
         VALUES (?,?,?,datetime('now'),'manual',?,?)
       `).run(guildId, userId, next.leg_index, dep, arr);
 
-      await interaction.reply(
-        `✅ Completed **Leg ${next.leg_index}**: **${dep} → ${arr}**`
-      );
-
-      await announceCompletion({
-        guildId,
-        discordId: userId,
-        legIndex: next.leg_index,
-        dep,
-        arr
-      });
-
+      await interaction.reply(`✅ Completed **Leg ${next.leg_index}**: **${dep} → ${arr}**`);
+      await announceCompletion({ guildId, discordId: userId, legIndex: next.leg_index, dep, arr, source: "manual" });
       return;
     }
 
     if (interaction.commandName === "vatsim_link") {
-
-      const cid = interaction.options.getString("cid");
+      const cid = interaction.options.getString("cid", true).trim();
 
       db.prepare(`
-        INSERT OR REPLACE INTO user_links
-        (guild_id, discord_id, vatsim_cid)
+        INSERT OR REPLACE INTO user_links (guild_id, discord_id, vatsim_cid)
         VALUES (?,?,?)
       `).run(guildId, userId, cid);
 
-      await interaction.reply({
-        content: `✅ VATSIM CID linked: **${cid}**`,
-        ephemeral: true
-      });
-
+      await interaction.reply({ content: `✅ VATSIM CID linked: **${cid}**`, ephemeral: true });
       return;
     }
 
+    // fallback
+    await interaction.reply({ content: "Unknown command.", ephemeral: true });
   } catch (err) {
-
     console.error(err);
-
     if (!interaction.replied) {
-      await interaction.reply({
-        content: "Something went wrong.",
-        ephemeral: true
-      });
+      await interaction.reply({ content: "Something went wrong.", ephemeral: true });
     }
   }
-
 });
 
 client.login(process.env.DISCORD_TOKEN);
