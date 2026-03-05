@@ -15,16 +15,16 @@ export const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
-  .setName("rtw_route")
-  .setDescription("Show the full RTW route"),
-
-  new SlashCommandBuilder()
     .setName("rtw_daily_channel")
     .setDescription("Admin: set the channel for the daily RTW update post")
     .addChannelOption(o =>
       o.setName("channel").setDescription("Daily update channel").setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName("rtw_route")
+    .setDescription("Show the full RTW route"),
 
   new SlashCommandBuilder()
     .setName("rtw_next")
@@ -42,18 +42,33 @@ export const commands = [
     .setDescription("Show the RTW leaderboard"),
 
   new SlashCommandBuilder()
-  .setName("rtw_export_db")
-  .setDescription("Admin: download the RTW database")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  new SlashCommandBuilder()
     .setName("rtw_check")
     .setDescription("Manual strict checkoff (must match your next leg)")
     .addStringOption(o => o.setName("dep").setRequired(true).setDescription("Departure ICAO"))
     .addStringOption(o => o.setName("arr").setRequired(true).setDescription("Arrival ICAO")),
 
   new SlashCommandBuilder()
+    .setName("rtw_export_db")
+    .setDescription("Admin: download the RTW database")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  // VATSIM identity improvements
+  new SlashCommandBuilder()
     .setName("vatsim_link")
-    .setDescription("Link your VATSIM CID (for future auto logging)")
-    .addStringOption(o => o.setName("cid").setRequired(true).setDescription("VATSIM CID")),
+    .setDescription("Link your VATSIM CID (for auto logging)")
+    .addStringOption(o => o.setName("cid").setRequired(true).setDescription("VATSIM CID (numbers only)")),
+
+  new SlashCommandBuilder()
+    .setName("vatsim_me")
+    .setDescription("Show your linked VATSIM CID"),
+
+  new SlashCommandBuilder()
+    .setName("vatsim_unlink")
+    .setDescription("Unlink your VATSIM CID from your Discord account"),
+
+  new SlashCommandBuilder()
+    .setName("vatsim_pilots")
+    .setDescription("Admin: list pilots who linked a VATSIM CID in this server")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
 ].map(c => c.toJSON());
