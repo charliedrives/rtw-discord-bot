@@ -1,5 +1,5 @@
 export const RTW_ROUTE = [
-  ["EGLC","EGPD"],
+  ["EGSS","EGPD"],
   ["EGPD","BIKF"],
   ["BIKF","BGSF"],
   ["BGSF","CYUL"],
@@ -44,5 +44,5 @@ export const RTW_ROUTE = [
   ["LPPT","LFPG"],
   ["LFPG","UKLL"],
   ["UKLL","EHAM"],
-  ["EHAM","EGLC"],
+  ["EHAM","EGSS"],
 ];
