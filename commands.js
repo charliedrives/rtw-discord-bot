@@ -38,6 +38,11 @@ export const commands = [
     .setDescription("Show the RTW leaderboard"),
 
   new SlashCommandBuilder()
+  .setName("rtw_export_db")
+  .setDescription("Admin: download the RTW database")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("rtw_check")
     .setDescription("Manual strict checkoff (must match your next leg)")
     .addStringOption(o => o.setName("dep").setRequired(true).setDescription("Departure ICAO"))
