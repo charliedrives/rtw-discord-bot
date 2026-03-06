@@ -226,7 +226,7 @@ export function startVatsimAutoTracking({
           const looksCompleted =
             dep &&
             arr &&
-            //s.sawDepartureProximity &&
+            s.sawDepartureProximity &&
             s.sawArrivalProximity &&
             durationMinutes >= minDurationMinutes &&
             finalArrivalDistanceNm <= endRadiusNm &&
