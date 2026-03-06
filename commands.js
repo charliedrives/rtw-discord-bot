@@ -30,11 +30,7 @@ export const commands = [
     .setName("rtw_route")
     .setDescription("Show the full RTW route"),
   
-    new SlashCommandBuilder()
-  .setName("rtw_complete")
-  .setDescription("Complete your next RTW leg"),
-
-new SlashCommandBuilder()
+ new SlashCommandBuilder()
   .setName("vatsim_debug")
   .setDescription("Show VATSIM auto-tracking debug info for your linked CID"),  
   
