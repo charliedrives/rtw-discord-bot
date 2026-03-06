@@ -75,11 +75,10 @@ export function startVatsimAutoTracking({
   getNextLeg,
   onLegCompleted,
   intervalMs = 120000,
-  startRadiusNm = 25,
-  endRadiusNm = 25,
-  minDurationMinutes = 30,
-  maxArrivalAltitudeFt = 3000,
-  maxArrivalGroundspeedKt = 80,
+  startRadiusNm = 75,
+  endRadiusNm = 75,
+  minDurationMinutes = 20,
+  maxArrivalAltitudeFt = 6000,
 }) {
   // Per CID state
   const state = new Map();
@@ -138,7 +137,6 @@ export function startVatsimAutoTracking({
             lastLat: null,
             lastLon: null,
             lastAlt: null,
-            lastGs: null,
           };
         }
 
@@ -150,10 +148,9 @@ export function startVatsimAutoTracking({
           const lat = Number(pilot.latitude);
           const lon = Number(pilot.longitude);
           const alt = Number(pilot.altitude);
-          const gs = Number(pilot.groundspeed);
 
-          // New session or changed plan
           const flightPlanChanged = dep !== s.dep || arr !== s.arr;
+
           if (!s.wasOnline || flightPlanChanged) {
             s = {
               wasOnline: true,
@@ -166,7 +163,6 @@ export function startVatsimAutoTracking({
               lastLat: lat,
               lastLon: lon,
               lastAlt: alt,
-              lastGs: gs,
             };
           } else {
             s.wasOnline = true;
@@ -174,7 +170,6 @@ export function startVatsimAutoTracking({
             s.lastLat = lat;
             s.lastLon = lon;
             s.lastAlt = alt;
-            s.lastGs = gs;
           }
 
           const depAirport = getAirport(dep);
@@ -203,7 +198,6 @@ export function startVatsimAutoTracking({
           const dep = (s.dep || "").toUpperCase();
           const arr = (s.arr || "").toUpperCase();
 
-          const depAirport = getAirport(dep);
           const arrAirport = getAirport(arr);
 
           const durationMinutes = s.firstSeenMs
@@ -226,9 +220,7 @@ export function startVatsimAutoTracking({
 
           const validArrivalState =
             Number.isFinite(s.lastAlt) &&
-            Number.isFinite(s.lastGs) &&
-            s.lastAlt <= maxArrivalAltitudeFt &&
-            s.lastGs <= maxArrivalGroundspeedKt;
+            s.lastAlt <= maxArrivalAltitudeFt;
 
           const looksCompleted =
             dep &&
@@ -266,7 +258,7 @@ export function startVatsimAutoTracking({
               `[vatsim] Not auto-crediting CID ${cid}: dep=${dep} arr=${arr} ` +
               `startProx=${s.sawDepartureProximity} endProx=${s.sawArrivalProximity} ` +
               `durMin=${durationMinutes.toFixed(1)} finalDistNm=${Number.isFinite(finalArrivalDistanceNm) ? finalArrivalDistanceNm.toFixed(1) : "inf"} ` +
-              `alt=${s.lastAlt} gs=${s.lastGs}`
+              `alt=${s.lastAlt}`
             );
           }
 
@@ -281,7 +273,6 @@ export function startVatsimAutoTracking({
             lastLat: null,
             lastLon: null,
             lastAlt: null,
-            lastGs: null,
           });
         }
       }
