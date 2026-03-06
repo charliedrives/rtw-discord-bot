@@ -230,6 +230,23 @@ client.once("ready", () => {
 });
 
 client.on("interactionCreate", async (interaction) => {
+
+  if (interaction.isButton()) {
+  if (interaction.customId === "rtw_complete_button") {
+    const guildId = interaction.guildId;
+    const userId = interaction.user.id;
+
+    if (!guildId) {
+      await interaction.reply({ content: "Use this in a server.", ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    await completeNextLeg({ interaction, guildId, userId });
+    return;
+  }
+}
+
   if (!interaction.isChatInputCommand()) return;
 
   const guildId = interaction.guildId;
@@ -304,25 +321,46 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (interaction.commandName === "rtw_next") {
-      const total = db
-        .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
-        .get(guildId).c;
+ if (interaction.commandName === "rtw_next") {
+  const total = db
+    .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
+    .get(guildId).c;
 
-      if (!total) {
-        await interaction.reply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
-        return;
-      }
+  if (!total) {
+    await interaction.reply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+    return;
+  }
 
-      const next = getNextLeg(guildId, userId);
-      if (!next) {
-        await interaction.reply("🏁 You’ve completed all legs!");
-        return;
-      }
+  const done = db
+    .prepare(`SELECT COUNT(*) AS c FROM completions WHERE guild_id=? AND discord_id=?`)
+    .get(guildId, userId).c;
 
-      await interaction.reply(`Next leg (**${next.leg_index}**): **${next.from_icao} → ${next.to_icao}**`);
-      return;
-    }
+  const next = getNextLeg(guildId, userId);
+
+  if (!next) {
+    await interaction.reply("🏁 You’ve completed all legs!");
+    return;
+  }
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("rtw_complete_button")
+      .setLabel("Complete Leg")
+      .setStyle(ButtonStyle.Success)
+      .setEmoji("✈️")
+  );
+
+  await interaction.reply({
+    content:
+      `✈️ **Your Next RTW Leg**\n` +
+      `**Leg ${next.leg_index}:** ${next.from_icao} → ${next.to_icao}\n` +
+      `**Progress:** ${done}/${total}`,
+    components: [row],
+    ephemeral: true
+  });
+
+  return;
+}
 
     if (interaction.commandName === "rtw_status") {
       await interaction.deferReply();
