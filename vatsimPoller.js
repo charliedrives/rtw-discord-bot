@@ -17,7 +17,7 @@ function haversineNm(lat1, lon1, lat2, lon2) {
 }
 
 const AIRPORTS = {
-  EGLC: { lat: 51.5053, lon: 0.0553 },
+  EGSS: { lat: 51.5053, lon: 0.0553 },
   EGPD: { lat: 57.2019, lon: -2.1978 },
   BIKF: { lat: 63.9850, lon: -22.6056 },
   BGSF: { lat: 67.0122, lon: -50.7116 },
