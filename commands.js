@@ -7,6 +7,10 @@ export const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+  .setName("rtw_complete")
+  .setDescription("Complete your next RTW leg"),
+  
+    new SlashCommandBuilder()
     .setName("rtw_channel")
     .setDescription("Admin: set the channel where leg completions are announced")
     .addChannelOption(o =>
@@ -25,7 +29,15 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("rtw_route")
     .setDescription("Show the full RTW route"),
+  
+    new SlashCommandBuilder()
+  .setName("rtw_complete")
+  .setDescription("Complete your next RTW leg"),
 
+new SlashCommandBuilder()
+  .setName("vatsim_debug")
+  .setDescription("Show VATSIM auto-tracking debug info for your linked CID"),  
+  
   new SlashCommandBuilder()
     .setName("rtw_next")
     .setDescription("Show your next RTW leg"),

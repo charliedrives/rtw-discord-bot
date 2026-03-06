@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { Client, GatewayIntentBits } from "discord.js";
 import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
-import { startVatsimAutoTracking } from "./vatsimPoller.js";
+import { startVatsimAutoTracking, getVatsimDebugStatus } from "./vatsimPoller.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
@@ -351,6 +351,47 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "rtw_complete") {
+  await interaction.deferReply({ ephemeral: true });
+
+  const total = db
+    .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
+    .get(guildId).c;
+
+  if (!total) {
+    await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+    return;
+  }
+
+  const next = getNextLeg(guildId, userId);
+
+  if (!next) {
+    await interaction.editReply("🏁 You’ve already completed the full route!");
+    return;
+  }
+
+  db.prepare(`
+    INSERT OR IGNORE INTO completions
+    (guild_id, discord_id, leg_index, completed_at, source, dep, arr)
+    VALUES (?,?,?,datetime('now'),'manual',?,?)
+  `).run(guildId, userId, next.leg_index, next.from_icao, next.to_icao);
+
+  await interaction.editReply(
+    `✅ Completed **Leg ${next.leg_index}**: **${next.from_icao} → ${next.to_icao}**`
+  );
+
+  await announceCompletion({
+    guildId,
+    discordId: userId,
+    legIndex: next.leg_index,
+    dep: next.from_icao,
+    arr: next.to_icao,
+    source: "manual",
+  });
+
+  return;
+}
+
     if (interaction.commandName === "rtw_check") {
       const dep = interaction.options.getString("dep", true).toUpperCase().trim();
       const arr = interaction.options.getString("arr", true).toUpperCase().trim();
@@ -435,6 +476,52 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.editReply(`🛰️ Linked CID: **${row.vatsim_cid}** ✅\nName: **${row.discord_name || "n/a"}**\nLinked at: ${row.linked_at || "n/a"} UTC`);
       return;
     }
+
+    if (interaction.commandName === "vatsim_debug") {
+  await interaction.deferReply({ ephemeral: true });
+
+  const link = db.prepare(`
+    SELECT vatsim_cid
+    FROM user_links
+    WHERE guild_id=? AND discord_id=?
+  `).get(guildId, userId);
+
+  if (!link) {
+    await interaction.editReply("🛰️ You haven’t linked a VATSIM CID yet. Use **/vatsim_link**.");
+    return;
+  }
+
+  const s = getVatsimDebugStatus(link.vatsim_cid);
+
+  if (!s) {
+    await interaction.editReply(
+      `🛰️ CID **${link.vatsim_cid}** is linked, but there is no poller state yet.\n` +
+      `This usually means the bot hasn’t seen you on VATSIM since the last restart.`
+    );
+    return;
+  }
+
+  const dep = s.dep || "n/a";
+  const arr = s.arr || "n/a";
+  const dur = Number.isFinite(s.durationMinutes) ? s.durationMinutes.toFixed(1) : "n/a";
+  const dist = Number.isFinite(s.finalArrivalDistanceNm) ? s.finalArrivalDistanceNm.toFixed(1) : "n/a";
+  const alt = Number.isFinite(s.lastAlt) ? s.lastAlt : "n/a";
+
+  await interaction.editReply(
+    `🛰️ **VATSIM Debug**\n` +
+    `CID: **${link.vatsim_cid}**\n` +
+    `Online now: **${s.wasOnline ? "yes" : "no"}**\n` +
+    `DEP: **${dep}**\n` +
+    `ARR: **${arr}**\n` +
+    `Saw departure proximity: **${s.sawDepartureProximity ? "yes" : "no"}**\n` +
+    `Saw arrival proximity: **${s.sawArrivalProximity ? "yes" : "no"}**\n` +
+    `Duration: **${dur} min**\n` +
+    `Final arrival distance: **${dist} nm**\n` +
+    `Final altitude: **${alt} ft**\n` +
+    `Would auto-credit: **${s.looksCompleted ? "yes" : "no"}**`
+  );
+  return;
+}
 
     if (interaction.commandName === "vatsim_unlink") {
       await interaction.deferReply({ ephemeral: true });

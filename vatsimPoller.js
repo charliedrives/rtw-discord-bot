@@ -1,7 +1,3 @@
-// vatsimPoller.js
-// Auto-tracks linked VATSIM CIDs and logs STRICT next-leg completions
-// only if the pilot appears to have actually started near DEP and finished near ARR.
-
 function toRad(deg) {
   return (deg * Math.PI) / 180;
 }
@@ -17,10 +13,9 @@ function haversineNm(lat1, lon1, lat2, lon2) {
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const km = R_km * c;
-  return km * 0.539957; // km -> nm
+  return km * 0.539957;
 }
 
-// Keep this in sync with your RTW airports
 const AIRPORTS = {
   EGLC: { lat: 51.5053, lon: 0.0553 },
   EGPD: { lat: 57.2019, lon: -2.1978 },
@@ -70,6 +65,12 @@ const AIRPORTS = {
   EHAM: { lat: 52.3105, lon: 4.7683 },
 };
 
+const state = new Map();
+
+export function getVatsimDebugStatus(cid) {
+  return state.get(String(cid).trim()) || null;
+}
+
 export function startVatsimAutoTracking({
   db,
   getNextLeg,
@@ -80,9 +81,6 @@ export function startVatsimAutoTracking({
   minDurationMinutes = 20,
   maxArrivalAltitudeFt = 6000,
 }) {
-  // Per CID state
-  const state = new Map();
-
   function getAirport(icao) {
     return AIRPORTS[(icao || "").toUpperCase()] || null;
   }
@@ -137,6 +135,9 @@ export function startVatsimAutoTracking({
             lastLat: null,
             lastLon: null,
             lastAlt: null,
+            finalArrivalDistanceNm: null,
+            durationMinutes: null,
+            looksCompleted: false,
           };
         }
 
@@ -163,6 +164,9 @@ export function startVatsimAutoTracking({
               lastLat: lat,
               lastLon: lon,
               lastAlt: alt,
+              finalArrivalDistanceNm: null,
+              durationMinutes: 0,
+              looksCompleted: false,
             };
           } else {
             s.wasOnline = true;
@@ -170,6 +174,7 @@ export function startVatsimAutoTracking({
             s.lastLat = lat;
             s.lastLon = lon;
             s.lastAlt = alt;
+            s.durationMinutes = s.firstSeenMs ? (now - s.firstSeenMs) / 60000 : 0;
           }
 
           const depAirport = getAirport(dep);
@@ -184,6 +189,7 @@ export function startVatsimAutoTracking({
 
           if (arrAirport && Number.isFinite(lat) && Number.isFinite(lon)) {
             const arrDist = haversineNm(lat, lon, arrAirport.lat, arrAirport.lon);
+            s.finalArrivalDistanceNm = arrDist;
             if (arrDist <= endRadiusNm) {
               s.sawArrivalProximity = true;
             }
@@ -193,7 +199,6 @@ export function startVatsimAutoTracking({
           continue;
         }
 
-        // Offline now
         if (s.wasOnline) {
           const dep = (s.dep || "").toUpperCase();
           const arr = (s.arr || "").toUpperCase();
@@ -205,11 +210,7 @@ export function startVatsimAutoTracking({
             : 0;
 
           let finalArrivalDistanceNm = Infinity;
-          if (
-            arrAirport &&
-            Number.isFinite(s.lastLat) &&
-            Number.isFinite(s.lastLon)
-          ) {
+          if (arrAirport && Number.isFinite(s.lastLat) && Number.isFinite(s.lastLon)) {
             finalArrivalDistanceNm = haversineNm(
               s.lastLat,
               s.lastLon,
@@ -230,6 +231,15 @@ export function startVatsimAutoTracking({
             durationMinutes >= minDurationMinutes &&
             finalArrivalDistanceNm <= endRadiusNm &&
             validArrivalState;
+
+          s.durationMinutes = durationMinutes;
+          s.finalArrivalDistanceNm = Number.isFinite(finalArrivalDistanceNm)
+            ? finalArrivalDistanceNm
+            : null;
+          s.looksCompleted = looksCompleted;
+          s.wasOnline = false;
+
+          state.set(cid, s);
 
           if (looksCompleted) {
             for (const u of users) {
@@ -253,27 +263,7 @@ export function startVatsimAutoTracking({
                 });
               }
             }
-          } else {
-            console.log(
-              `[vatsim] Not auto-crediting CID ${cid}: dep=${dep} arr=${arr} ` +
-              `startProx=${s.sawDepartureProximity} endProx=${s.sawArrivalProximity} ` +
-              `durMin=${durationMinutes.toFixed(1)} finalDistNm=${Number.isFinite(finalArrivalDistanceNm) ? finalArrivalDistanceNm.toFixed(1) : "inf"} ` +
-              `alt=${s.lastAlt}`
-            );
           }
-
-          state.set(cid, {
-            wasOnline: false,
-            dep: null,
-            arr: null,
-            firstSeenMs: null,
-            lastSeenMs: null,
-            sawDepartureProximity: false,
-            sawArrivalProximity: false,
-            lastLat: null,
-            lastLon: null,
-            lastAlt: null,
-          });
         }
       }
     } catch (err) {
