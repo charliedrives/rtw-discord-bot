@@ -3,10 +3,14 @@ import { openDb } from "./db.js";
 
 let client = null;
 let db = null;
+let discordClient = null;
 let lastRtwCommandAt = 0;
 
-export function startTwitch() {
+export function setDiscordClient(botClient) {
+  discordClient = botClient;
+}
 
+export function startTwitch() {
   if (process.env.TWITCH_ENABLED !== "true") {
     console.log("[twitch] disabled");
     return;
@@ -49,17 +53,13 @@ export function startTwitch() {
   });
 
   client.on("message", async (channelName, tags, message, self) => {
-
     if (self) return;
 
     const msg = message.trim().toLowerCase();
 
-    // RTW leaderboard command
     if (msg === "!rtw") {
-
       const now = Date.now();
 
-      // 30s cooldown to prevent spam
       if (now - lastRtwCommandAt < 30000) {
         return;
       }
@@ -67,16 +67,12 @@ export function startTwitch() {
       lastRtwCommandAt = now;
 
       try {
-
         const rows = db.prepare(`
           SELECT
-            c.discord_id,
-            COUNT(*) AS completed,
-            COALESCE(MAX(ul.discord_name), c.discord_id) AS display_name
-          FROM completions c
-          LEFT JOIN user_links ul
-            ON ul.discord_id = c.discord_id
-          GROUP BY c.discord_id
+            discord_id,
+            COUNT(*) AS completed
+          FROM completions
+          GROUP BY discord_id
           ORDER BY completed DESC
           LIMIT 3
         `).all();
@@ -91,16 +87,25 @@ export function startTwitch() {
           FROM route_legs
         `).get().c;
 
-        const medals = ["🥇","🥈","🥉"];
+        const medals = ["🥇", "🥈", "🥉"];
 
-        const parts = rows.map((r,i) =>
-          `${medals[i]} ${r.display_name} ${r.completed}/${total}`
+        const parts = await Promise.all(
+          rows.map(async (r, i) => {
+            let displayName = r.discord_id;
+
+            if (discordClient) {
+              const user = await discordClient.users.fetch(r.discord_id).catch(() => null);
+              if (user?.username) {
+                displayName = user.username;
+              }
+            }
+
+            return `${medals[i]} ${displayName} ${r.completed}/${total}`;
+          })
         );
 
-        // Leaderboard message
         client.say(channelName, `🌍 RTW Leaderboard: ${parts.join(" | ")}`);
 
-        // Invite message slightly delayed
         setTimeout(() => {
           client.say(
             channelName,
@@ -112,7 +117,6 @@ export function startTwitch() {
         console.error("[twitch] !rtw command error", err);
       }
     }
-
   });
 
   client.connect()
@@ -120,9 +124,7 @@ export function startTwitch() {
     .catch(err => console.error("[twitch] connection failed", err));
 }
 
-
 export function postToTwitch(message) {
-
   if (!client) {
     console.log("[twitch] client not ready");
     return;
@@ -131,5 +133,4 @@ export function postToTwitch(message) {
   client.say(process.env.TWITCH_CHANNEL, message)
     .then(() => console.log("[twitch] sent:", message))
     .catch(err => console.error("[twitch] send error", err));
-
 }
