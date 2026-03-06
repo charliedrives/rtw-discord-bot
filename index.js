@@ -3,7 +3,7 @@ import { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle
 import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
 import { startVatsimAutoTracking, getVatsimDebugStatus } from "./vatsimPoller.js";
-import { startTwitch, postToTwitch } from "./twitch.js";
+import { startTwitch, postToTwitch, setDiscordClient } from "./twitch.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
@@ -262,6 +262,7 @@ async function completeNextLeg({ interaction, guildId, userId }) {
 client.once("clientReady", () => {
   console.log(`Bot online: ${client.user.tag}`);
 
+  setDiscordClient(client);
   startTwitch();
 
   startVatsimAutoTracking({
