@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { Client, GatewayIntentBits } from "discord.js";
+import { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
 import { startVatsimAutoTracking, getVatsimDebugStatus } from "./vatsimPoller.js";
@@ -163,6 +163,55 @@ async function postDailyUpdates() {
 
     await ch.send(buildDailyPost(g.guild_id)).catch(() => null);
   }
+}
+
+async function completeNextLeg({ interaction, guildId, userId }) {
+  const total = db
+    .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
+    .get(guildId).c;
+
+  if (!total) {
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+    } else {
+      await interaction.reply({ content: "⚠️ Route not initialised here yet. Run **/rtw_setup**.", ephemeral: true });
+    }
+    return;
+  }
+
+  const next = getNextLeg(guildId, userId);
+
+  if (!next) {
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply("🏁 You’ve already completed the full route!");
+    } else {
+      await interaction.reply({ content: "🏁 You’ve already completed the full route!", ephemeral: true });
+    }
+    return;
+  }
+
+  db.prepare(`
+    INSERT OR IGNORE INTO completions
+    (guild_id, discord_id, leg_index, completed_at, source, dep, arr)
+    VALUES (?,?,?,datetime('now'),'manual',?,?)
+  `).run(guildId, userId, next.leg_index, next.from_icao, next.to_icao);
+
+  const msg = `✅ Completed **Leg ${next.leg_index}**: **${next.from_icao} → ${next.to_icao}**`;
+
+  if (interaction.deferred || interaction.replied) {
+    await interaction.editReply({ content: msg, components: [] });
+  } else {
+    await interaction.reply({ content: msg, ephemeral: true });
+  }
+
+  await announceCompletion({
+    guildId,
+    discordId: userId,
+    legIndex: next.leg_index,
+    dep: next.from_icao,
+    arr: next.to_icao,
+    source: "manual",
+  });
 }
 
 client.once("ready", () => {
@@ -352,45 +401,10 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "rtw_complete") {
-  await interaction.deferReply({ ephemeral: true });
-
-  const total = db
-    .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
-    .get(guildId).c;
-
-  if (!total) {
-    await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+    await interaction.deferReply({ ephemeral: true });
+    await completeNextLeg({ interaction, guildId, userId });
     return;
-  }
-
-  const next = getNextLeg(guildId, userId);
-
-  if (!next) {
-    await interaction.editReply("🏁 You’ve already completed the full route!");
-    return;
-  }
-
-  db.prepare(`
-    INSERT OR IGNORE INTO completions
-    (guild_id, discord_id, leg_index, completed_at, source, dep, arr)
-    VALUES (?,?,?,datetime('now'),'manual',?,?)
-  `).run(guildId, userId, next.leg_index, next.from_icao, next.to_icao);
-
-  await interaction.editReply(
-    `✅ Completed **Leg ${next.leg_index}**: **${next.from_icao} → ${next.to_icao}**`
-  );
-
-  await announceCompletion({
-    guildId,
-    discordId: userId,
-    legIndex: next.leg_index,
-    dep: next.from_icao,
-    arr: next.to_icao,
-    source: "manual",
-  });
-
-  return;
-}
+    }
 
     if (interaction.commandName === "rtw_check") {
       const dep = interaction.options.getString("dep", true).toUpperCase().trim();
