@@ -1,31 +1,23 @@
 import tmi from "tmi.js";
+import { openDb } from "./db.js";
 
 let client = null;
+let db = null;
 
 export function startTwitch() {
+
   if (process.env.TWITCH_ENABLED !== "true") {
     console.log("[twitch] disabled");
     return;
   }
 
+  db = openDb();
+
   const username = process.env.TWITCH_BOT_USERNAME;
   const password = process.env.TWITCH_OAUTH;
   const channel = process.env.TWITCH_CHANNEL;
 
-  if (!username || !password || !channel) {
-    console.log("[twitch] missing env vars", {
-      hasUsername: !!username,
-      hasPassword: !!password,
-      hasChannel: !!channel,
-    });
-    return;
-  }
-
-  console.log("[twitch] starting", {
-    username,
-    channel,
-    hasOauth: !!password,
-  });
+  console.log("[twitch] starting connection");
 
   client = new tmi.Client({
     identity: {
@@ -35,30 +27,55 @@ export function startTwitch() {
     channels: [channel],
   });
 
-  client.on("connected", (addr, port) => {
-    console.log(`[twitch] connected to ${addr}:${port}`);
+  client.on("connected", () => {
+    console.log("[twitch] chat connected");
   });
 
-  client.on("disconnected", (reason) => {
-    console.log(`[twitch] disconnected: ${reason}`);
+  client.on("message", async (channel, tags, message, self) => {
+
+    if (self) return;
+
+    const msg = message.trim().toLowerCase();
+
+    if (msg === "!rtw") {
+
+      const rows = db.prepare(`
+        SELECT discord_id, COUNT(*) AS completed
+        FROM completions
+        GROUP BY discord_id
+        ORDER BY completed DESC
+        LIMIT 3
+      `).all();
+
+      if (!rows.length) {
+        client.say(channel, "🌍 RTW has not started yet.");
+        return;
+      }
+
+      const total = db.prepare(`
+        SELECT COUNT(*) AS c
+        FROM route_legs
+      `).get().c;
+
+      const medals = ["🥇","🥈","🥉"];
+
+      const parts = rows.map((r,i) =>
+        `${medals[i]} ${r.discord_id} ${r.completed}/${total}`
+      );
+
+      client.say(channel, `🌍 RTW Leaderboard: ${parts.join(" | ")}`);
+
+    }
+
   });
 
-  client.on("notice", (channel, msgid, message) => {
-    console.log(`[twitch] notice ${msgid}: ${message}`);
-  });
-
-  client.connect()
-    .then(() => console.log("[twitch] chat connected"))
-    .catch(err => console.error("[twitch] connection failed", err));
+  client.connect();
 }
 
 export function postToTwitch(message) {
-  if (!client) {
-    console.log("[twitch] client not ready");
-    return;
-  }
+
+  if (!client) return;
 
   client.say(process.env.TWITCH_CHANNEL, message)
-    .then(() => console.log("[twitch] sent:", message))
     .catch(err => console.error("[twitch] send error", err));
 }
