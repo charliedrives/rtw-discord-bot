@@ -404,7 +404,7 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply({ ephemeral: true });
     await completeNextLeg({ interaction, guildId, userId });
     return;
-    }
+    } 
 
     if (interaction.commandName === "rtw_check") {
       const dep = interaction.options.getString("dep", true).toUpperCase().trim();
