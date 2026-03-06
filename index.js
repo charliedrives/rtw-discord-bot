@@ -3,6 +3,7 @@ import { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle
 import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
 import { startVatsimAutoTracking, getVatsimDebugStatus } from "./vatsimPoller.js";
+import { startTwitch, postToTwitch } from "./twitch.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
@@ -48,15 +49,59 @@ function getNextLeg(guildId, discordId) {
 }
 
 async function announceCompletion({ guildId, discordId, legIndex, dep, arr, source }) {
+
   const settings = getGuildSettings(guildId);
   const channelId = settings.announce_channel_id;
-  if (!channelId) return;
 
-  const ch = await client.channels.fetch(channelId).catch(() => null);
-  if (!ch) return;
+  // Discord announcement
+  if (channelId) {
 
-  const vibe = source === "vatsim" ? "🛰️" : "📝";
-  await ch.send(`${vibe} ✅ <@${discordId}> just smashed **Leg ${legIndex}**: **${dep} → ${arr}**`);
+    const ch = await client.channels.fetch(channelId).catch(() => null);
+
+    if (ch) {
+
+      const vibe = source === "vatsim" ? "🛰️" : "📝";
+
+      await ch.send(
+        `${vibe} ✅ <@${discordId}> just smashed **Leg ${legIndex}**: **${dep} → ${arr}**`
+      );
+
+    }
+  }
+
+  // Get Discord username
+  const user = await client.users.fetch(discordId).catch(() => null);
+  const username = user?.username || "Pilot";
+
+  // Twitch message
+  if (username.toLowerCase() === "charliedrives") {
+
+    postToTwitch(
+      `🔥 ${username} just smashed Leg ${legIndex} — ${dep} → ${arr}`
+    );
+
+  } else {
+
+    postToTwitch(
+      `✈️ RTW update: ${username} completed Leg ${legIndex} — ${dep} → ${arr}`
+    );
+
+  }
+
+  // Milestone check
+  const completed = db.prepare(`
+    SELECT COUNT(*) AS c
+    FROM completions
+    WHERE guild_id=? AND discord_id=?
+  `).get(guildId, discordId).c;
+
+  if ([5, 10, 15, 20, 25, 30, 35, 40].includes(completed)) {
+
+    postToTwitch(
+      `🏆 RTW milestone: ${username} has completed ${completed} legs!`
+    );
+
+  }
 }
 
 function medal(i) {
@@ -214,8 +259,10 @@ async function completeNextLeg({ interaction, guildId, userId }) {
   });
 }
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`Bot online: ${client.user.tag}`);
+
+  startTwitch();
 
   startVatsimAutoTracking({
     db,
