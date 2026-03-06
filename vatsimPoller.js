@@ -1,14 +1,92 @@
 // vatsimPoller.js
-// Auto-tracks linked VATSIM CIDs and logs STRICT next-leg completions on disconnect.
+// Auto-tracks linked VATSIM CIDs and logs STRICT next-leg completions
+// only if the pilot appears to have actually started near DEP and finished near ARR.
+
+function toRad(deg) {
+  return (deg * Math.PI) / 180;
+}
+
+function haversineNm(lat1, lon1, lat2, lon2) {
+  const R_km = 6371.0;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const km = R_km * c;
+  return km * 0.539957; // km -> nm
+}
+
+// Keep this in sync with your RTW airports
+const AIRPORTS = {
+  EGLC: { lat: 51.5053, lon: 0.0553 },
+  EGPD: { lat: 57.2019, lon: -2.1978 },
+  BIKF: { lat: 63.9850, lon: -22.6056 },
+  BGSF: { lat: 67.0122, lon: -50.7116 },
+  CYUL: { lat: 45.4706, lon: -73.7408 },
+  KDTW: { lat: 42.2162, lon: -83.3554 },
+  KDEN: { lat: 39.8561, lon: -104.6737 },
+  KLAS: { lat: 36.0840, lon: -115.1537 },
+  KLAX: { lat: 33.9425, lon: -118.4081 },
+  KSEA: { lat: 47.4502, lon: -122.3088 },
+  CYLW: { lat: 49.9561, lon: -119.3778 },
+  PANC: { lat: 61.1743, lon: -149.9983 },
+  UHPP: { lat: 53.1679, lon: 158.4537 },
+  UHSS: { lat: 46.8887, lon: 142.7173 },
+  RJTT: { lat: 35.5494, lon: 139.7798 },
+  RJBB: { lat: 34.4347, lon: 135.2440 },
+  RKSI: { lat: 37.4602, lon: 126.4407 },
+  ZSPD: { lat: 31.1443, lon: 121.8083 },
+  VHHH: { lat: 22.3080, lon: 113.9185 },
+  RCTP: { lat: 25.0797, lon: 121.2328 },
+  RPLL: { lat: 14.5086, lon: 121.0198 },
+  WBSB: { lat: 4.9442, lon: 114.9284 },
+  WAMM: { lat: 1.5493, lon: 124.9265 },
+  AYPY: { lat: -9.4434, lon: 147.2200 },
+  YBCS: { lat: -16.8858, lon: 145.7553 },
+  YPDN: { lat: -12.4147, lon: 130.8775 },
+  WIII: { lat: -6.1256, lon: 106.6559 },
+  WSSS: { lat: 1.3644, lon: 103.9915 },
+  VTBS: { lat: 13.6900, lon: 100.7501 },
+  VYYY: { lat: 16.9073, lon: 96.1332 },
+  VGHS: { lat: 23.8433, lon: 90.3978 },
+  VIJP: { lat: 26.8242, lon: 75.8122 },
+  OIIE: { lat: 35.4161, lon: 51.1522 },
+  UGTB: { lat: 41.6692, lon: 44.9547 },
+  LBSF: { lat: 42.6967, lon: 23.4114 },
+  LGAV: { lat: 37.9364, lon: 23.9445 },
+  LICC: { lat: 37.4668, lon: 15.0664 },
+  LIEE: { lat: 39.2515, lon: 9.0543 },
+  LEPA: { lat: 39.5517, lon: 2.7388 },
+  LXGB: { lat: 36.1512, lon: -5.3497 },
+  GMMX: { lat: 31.6069, lon: -8.0363 },
+  LPMA: { lat: 32.6979, lon: -16.7745 },
+  LPPT: { lat: 38.7742, lon: -9.1342 },
+  LFPG: { lat: 49.0097, lon: 2.5479 },
+  UKLL: { lat: 49.8125, lon: 23.9561 },
+  EHAM: { lat: 52.3105, lon: 4.7683 },
+};
 
 export function startVatsimAutoTracking({
   db,
   getNextLeg,
-  onLegCompleted, // async ({ guildId, discordId, legIndex, dep, arr, source }) => void
-  intervalMs = 120000, // 2 minutes
+  onLegCompleted,
+  intervalMs = 120000,
+  startRadiusNm = 25,
+  endRadiusNm = 25,
+  minDurationMinutes = 30,
+  maxArrivalAltitudeFt = 3000,
+  maxArrivalGroundspeedKt = 80,
 }) {
-  // Key: vatsim cid string => { wasOnline: bool, lastDep, lastArr }
+  // Per CID state
   const state = new Map();
+
+  function getAirport(icao) {
+    return AIRPORTS[(icao || "").toUpperCase()] || null;
+  }
 
   async function poll() {
     try {
@@ -28,49 +106,144 @@ export function startVatsimAutoTracking({
       }
 
       const res = await fetch("https://data.vatsim.net/v3/vatsim-data.json", {
-        headers: { "User-Agent": "CharlieRTWBot/1.0 (Discord RTW Tracker)" },
+        headers: { "User-Agent": "CharlieRTWBot/1.1" },
       });
       if (!res.ok) return;
 
       const data = await res.json();
       const pilots = Array.isArray(data?.pilots) ? data.pilots : [];
-
       const pilotsByCid = new Map();
+
       for (const p of pilots) {
         if (p?.cid == null) continue;
         pilotsByCid.set(String(p.cid), p);
       }
 
+      const now = Date.now();
+
       for (const [cid, users] of cidToUsers.entries()) {
         const pilot = pilotsByCid.get(cid);
-        const isOnlineNow = Boolean(pilot);
+        const isOnline = Boolean(pilot);
 
-        const prev = state.get(cid) || { wasOnline: false, lastDep: null, lastArr: null };
+        let s = state.get(cid);
+        if (!s) {
+          s = {
+            wasOnline: false,
+            dep: null,
+            arr: null,
+            firstSeenMs: null,
+            lastSeenMs: null,
+            sawDepartureProximity: false,
+            sawArrivalProximity: false,
+            lastLat: null,
+            lastLon: null,
+            lastAlt: null,
+            lastGs: null,
+          };
+        }
 
-        if (isOnlineNow) {
-          const fp = pilot.flight_plan || pilot.flightPlan || null;
-          const dep = (fp?.departure || fp?.dep || "").toString().trim().toUpperCase();
-          const arr = (fp?.arrival || fp?.arr || "").toString().trim().toUpperCase();
+        if (isOnline) {
+          const fp = pilot.flight_plan || pilot.flightPlan || {};
+          const dep = (fp.departure || "").toUpperCase().trim();
+          const arr = (fp.arrival || "").toUpperCase().trim();
 
-          state.set(cid, {
-            wasOnline: true,
-            lastDep: dep || prev.lastDep,
-            lastArr: arr || prev.lastArr,
-          });
+          const lat = Number(pilot.latitude);
+          const lon = Number(pilot.longitude);
+          const alt = Number(pilot.altitude);
+          const gs = Number(pilot.groundspeed);
+
+          // New session or changed plan
+          const flightPlanChanged = dep !== s.dep || arr !== s.arr;
+          if (!s.wasOnline || flightPlanChanged) {
+            s = {
+              wasOnline: true,
+              dep,
+              arr,
+              firstSeenMs: now,
+              lastSeenMs: now,
+              sawDepartureProximity: false,
+              sawArrivalProximity: false,
+              lastLat: lat,
+              lastLon: lon,
+              lastAlt: alt,
+              lastGs: gs,
+            };
+          } else {
+            s.wasOnline = true;
+            s.lastSeenMs = now;
+            s.lastLat = lat;
+            s.lastLon = lon;
+            s.lastAlt = alt;
+            s.lastGs = gs;
+          }
+
+          const depAirport = getAirport(dep);
+          const arrAirport = getAirport(arr);
+
+          if (depAirport && Number.isFinite(lat) && Number.isFinite(lon)) {
+            const depDist = haversineNm(lat, lon, depAirport.lat, depAirport.lon);
+            if (depDist <= startRadiusNm) {
+              s.sawDepartureProximity = true;
+            }
+          }
+
+          if (arrAirport && Number.isFinite(lat) && Number.isFinite(lon)) {
+            const arrDist = haversineNm(lat, lon, arrAirport.lat, arrAirport.lon);
+            if (arrDist <= endRadiusNm) {
+              s.sawArrivalProximity = true;
+            }
+          }
+
+          state.set(cid, s);
           continue;
         }
 
         // Offline now
-        if (prev.wasOnline) {
-          const dep = (prev.lastDep || "").toUpperCase();
-          const arr = (prev.lastArr || "").toUpperCase();
+        if (s.wasOnline) {
+          const dep = (s.dep || "").toUpperCase();
+          const arr = (s.arr || "").toUpperCase();
 
-          if (dep && arr) {
+          const depAirport = getAirport(dep);
+          const arrAirport = getAirport(arr);
+
+          const durationMinutes = s.firstSeenMs
+            ? (now - s.firstSeenMs) / 60000
+            : 0;
+
+          let finalArrivalDistanceNm = Infinity;
+          if (
+            arrAirport &&
+            Number.isFinite(s.lastLat) &&
+            Number.isFinite(s.lastLon)
+          ) {
+            finalArrivalDistanceNm = haversineNm(
+              s.lastLat,
+              s.lastLon,
+              arrAirport.lat,
+              arrAirport.lon
+            );
+          }
+
+          const validArrivalState =
+            Number.isFinite(s.lastAlt) &&
+            Number.isFinite(s.lastGs) &&
+            s.lastAlt <= maxArrivalAltitudeFt &&
+            s.lastGs <= maxArrivalGroundspeedKt;
+
+          const looksCompleted =
+            dep &&
+            arr &&
+            s.sawDepartureProximity &&
+            s.sawArrivalProximity &&
+            durationMinutes >= minDurationMinutes &&
+            finalArrivalDistanceNm <= endRadiusNm &&
+            validArrivalState;
+
+          if (looksCompleted) {
             for (const u of users) {
               const next = getNextLeg(u.guildId, u.discordId);
               if (!next) continue;
 
-              // STRICT match: must equal next leg exactly
               if (dep === next.from_icao && arr === next.to_icao) {
                 db.prepare(`
                   INSERT OR IGNORE INTO completions
@@ -88,11 +261,28 @@ export function startVatsimAutoTracking({
                 });
               }
             }
+          } else {
+            console.log(
+              `[vatsim] Not auto-crediting CID ${cid}: dep=${dep} arr=${arr} ` +
+              `startProx=${s.sawDepartureProximity} endProx=${s.sawArrivalProximity} ` +
+              `durMin=${durationMinutes.toFixed(1)} finalDistNm=${Number.isFinite(finalArrivalDistanceNm) ? finalArrivalDistanceNm.toFixed(1) : "inf"} ` +
+              `alt=${s.lastAlt} gs=${s.lastGs}`
+            );
           }
 
-          state.set(cid, { ...prev, wasOnline: false });
-        } else {
-          if (!state.has(cid)) state.set(cid, prev);
+          state.set(cid, {
+            wasOnline: false,
+            dep: null,
+            arr: null,
+            firstSeenMs: null,
+            lastSeenMs: null,
+            sawDepartureProximity: false,
+            sawArrivalProximity: false,
+            lastLat: null,
+            lastLon: null,
+            lastAlt: null,
+            lastGs: null,
+          });
         }
       }
     } catch (err) {
