@@ -11,5 +11,5 @@
     "discord.js": "^14.14.1",
     "better-sqlite3": "^9.4.0",
     "node-cron": "^3.0.3"
-  }
+  } 
 }
