@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-export function openDb(path = "./rtw.sqlite") {
+export function openDb(path = "./data/rtw.sqlite") {
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
 

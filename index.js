@@ -638,6 +638,28 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "rtw_restore_db") {
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const file = interaction.options.getAttachment("file", true);
+
+  if (!file.name.endsWith(".sqlite")) {
+    await interaction.editReply("❌ Please upload a `.sqlite` database file.");
+    return;
+  }
+
+  const res = await fetch(file.url);
+  const buffer = Buffer.from(await res.arrayBuffer());
+
+  const fs = await import("fs");
+
+  fs.writeFileSync("./data/rtw.sqlite", buffer);
+
+  await interaction.editReply("✅ Database restored successfully. Restart the bot service.");
+  return;
+}
+
     await interaction.reply({ content: "Unknown command.", ephemeral: true });
   } catch (err) {
     console.error(err);

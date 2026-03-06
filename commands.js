@@ -70,6 +70,16 @@ export const commands = [
     .setName("vatsim_me")
     .setDescription("Show your linked VATSIM CID"),
 
+    new SlashCommandBuilder()
+  .setName("rtw_restore_db")
+  .setDescription("Admin: restore the RTW database from an uploaded file")
+  .addAttachmentOption(o =>
+    o.setName("file")
+      .setDescription("Upload the rtw.sqlite backup")
+      .setRequired(true)
+  )
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
   new SlashCommandBuilder()
     .setName("vatsim_unlink")
     .setDescription("Unlink your VATSIM CID from your Discord account"),
