@@ -281,7 +281,7 @@ client.once("clientReady", () => {
   });
 
   cron.schedule("0 9 * * *", postDailyUpdates, { timezone: "Europe/London" });
-});
+}); 
 
 
 
