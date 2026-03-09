@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 
 export function openDb(path = "./data/rtw.sqlite") {
-  console.log("[db] opening sqlite database:", dbPath);
+  console.log("[db] opening sqlite database:", path);
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
 
