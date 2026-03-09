@@ -29,7 +29,7 @@ export function startOverlayServer(options = {}) {
       return row.discord_name;
     }
 
-  return `Discord ${discordId}`;
+  return `Discord ${discordId}`; 
 }
 
   function getDefaultGuildId() {
