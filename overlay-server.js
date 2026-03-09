@@ -16,14 +16,21 @@ export function startOverlayServer(options = {}) {
   });
 
   function getDisplayName(guildId, discordId) {
-    const linked = db.prepare(`
+
+    const row = db.prepare(`
       SELECT discord_name
       FROM user_links
       WHERE guild_id = ? AND discord_id = ?
+      ORDER BY linked_at DESC
+      LIMIT 1
     `).get(guildId, discordId);
 
-    return linked?.discord_name || `<@${discordId}>`; 
-  }
+    if (row && row.discord_name && row.discord_name.trim() !== "") {
+      return row.discord_name;
+    }
+
+  return `Discord ${discordId}`;
+}
 
   function getDefaultGuildId() {
     const row = db.prepare(`
