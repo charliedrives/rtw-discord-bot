@@ -125,6 +125,41 @@ function medal(i) {
   return "🏁";
 }
 
+async function backfillDiscordNames() {
+  const rows = db.prepare(`
+    SELECT DISTINCT guild_id, discord_id
+    FROM completions
+    ORDER BY guild_id, discord_id
+  `).all();
+
+  console.log(`[backfill] checking ${rows.length} Discord IDs`);
+
+  for (const row of rows) {
+    try {
+      const user = await client.users.fetch(row.discord_id).catch(() => null);
+      if (!user) continue;
+
+      const displayName = user.globalName || user.username;
+
+      db.prepare(`
+        INSERT INTO user_links (guild_id, discord_id, discord_name, linked_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(guild_id, discord_id)
+        DO UPDATE SET
+          discord_name = excluded.discord_name,
+          linked_at = datetime('now')
+      `).run(row.guild_id, row.discord_id, displayName);
+
+      console.log(`[backfill] ${row.discord_id} -> ${displayName}`);
+    } catch (err) {
+      console.warn(`[backfill] failed for ${row.discord_id}`, err);
+    }
+  }
+
+  console.log("[backfill] complete");
+}
+
+
 function buildDailyPost(guildId) {
   const totalLegs = db
     .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
