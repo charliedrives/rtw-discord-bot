@@ -144,17 +144,20 @@ async function backfillDiscordNames() {
 
       const displayName = user.globalName || user.username;
 
-      // Remove existing entry if present
-      db.prepare(`
-        DELETE FROM user_links
+      // Check if a user_links record already exists
+      const existing = db.prepare(`
+        SELECT vatsim_cid
+        FROM user_links
         WHERE guild_id = ? AND discord_id = ?
-      `).run(row.guild_id, row.discord_id);
+      `).get(row.guild_id, row.discord_id);
 
-      // Insert fresh name
+      const vatsimCid = existing?.vatsim_cid || "unknown";
+
       db.prepare(`
-        INSERT INTO user_links (guild_id, discord_id, discord_name, linked_at)
-        VALUES (?, ?, ?, datetime('now'))
-      `).run(row.guild_id, row.discord_id, displayName);
+        INSERT OR REPLACE INTO user_links
+        (guild_id, discord_id, vatsim_cid, discord_name, linked_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+      `).run(row.guild_id, row.discord_id, vatsimCid, displayName);
 
       console.log(`[backfill] ${row.discord_id} -> ${displayName}`);
 
