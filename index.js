@@ -309,7 +309,7 @@ async function completeNextLeg({ interaction, guildId, userId }) {
 }
 
 client.once("clientReady", () => {
-  console.log(`Bot online: ${client.user.tag}`);
+  console.log(`Bot online: ${client.user.tag}`); 
 
   setDiscordClient(client);
   startTwitch();
