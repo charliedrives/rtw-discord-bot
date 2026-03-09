@@ -144,14 +144,13 @@ async function backfillDiscordNames() {
 
       const displayName = user.globalName || user.username;
 
-      // Check if a user_links record already exists
       const existing = db.prepare(`
         SELECT vatsim_cid
         FROM user_links
         WHERE guild_id = ? AND discord_id = ?
       `).get(row.guild_id, row.discord_id);
 
-      const vatsimCid = existing?.vatsim_cid || "unknown";
+      const vatsimCid = existing?.vatsim_cid || `unknown-${row.discord_id}`;
 
       db.prepare(`
         INSERT OR REPLACE INTO user_links
