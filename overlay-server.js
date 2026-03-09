@@ -22,7 +22,7 @@ export function startOverlayServer(options = {}) {
       WHERE guild_id = ? AND discord_id = ?
     `).get(guildId, discordId);
 
-    return linked?.discord_name || `Discord ${discordId}`;
+    return linked?.discord_name || `<@${discordId}>`;
   }
 
   function getDefaultGuildId() {
