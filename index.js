@@ -315,16 +315,18 @@ async function completeNextLeg({ interaction, guildId, userId }) {
   });
 }
 
-client.once("clientReady", () => {
+client.once("clientReady", async () => {
   console.log(`Bot online: ${client.user.tag}`); 
 
   setDiscordClient(client);
   startTwitch();
 
   startOverlayServer({
-  port: Number(process.env.OVERLAY_PORT || 3001),
+    port: Number(process.env.OVERLAY_PORT || 3001),
   dbPath: process.env.RTW_DB_PATH || "./data/rtw.sqlite",
 });
+
+await backfillDiscordNames(); 
 
   startVatsimAutoTracking({
     db,
