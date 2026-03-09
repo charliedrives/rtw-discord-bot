@@ -4,6 +4,7 @@ import { openDb } from "./db.js";
 import { RTW_ROUTE } from "./route.js";
 import { startVatsimAutoTracking, getVatsimDebugStatus } from "./vatsimPoller.js";
 import { startTwitch, postToTwitch, setDiscordClient } from "./twitch.js";
+import { startOverlayServer } from "./overlay-server.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
@@ -265,6 +266,11 @@ client.once("clientReady", () => {
   setDiscordClient(client);
   startTwitch();
 
+  startOverlayServer({
+  port: Number(process.env.OVERLAY_PORT || 3001),
+  dbPath: process.env.RTW_DB_PATH || "./data/rtw.sqlite",
+});
+
   startVatsimAutoTracking({
     db,
     getNextLeg,
@@ -276,6 +282,8 @@ client.once("clientReady", () => {
 
   cron.schedule("0 9 * * *", postDailyUpdates, { timezone: "Europe/London" });
 });
+
+
 
 client.on("interactionCreate", async (interaction) => {
 
