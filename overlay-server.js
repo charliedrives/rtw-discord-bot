@@ -143,7 +143,7 @@ export function startOverlayServer(options = {}) {
       };
     });
   }
-
+  //comment for Kila
   function buildTicker({ recentCompletions, leaderboard }) {
     const recentText = recentCompletions.length
       ? recentCompletions.map(r => r.text).join(" • ")
@@ -168,16 +168,40 @@ export function startOverlayServer(options = {}) {
       const leaderboard = getLeaderboard(guildId, 3);
       const recentCompletions = getRecentCompletions(guildId, 3);
 
+      //helper for the RTW progress bar (for the stream)
+      const MY_DISCORD_ID = "602814535790755841";
+
+      const myProgressRow = db.prepare(`
+        SELECT COUNT(*) AS completed
+        FROM completions
+        WHERE guild_id = ? AND discord_id = ?
+      `).get(guildId, MY_DISCORD_ID);
+
+      const totalLegs = db.prepare(`
+        SELECT COUNT(*) AS c
+        FROM route_legs
+        WHERE guild_id = ?
+      `).get(guildId)?.c || 46;
+
       return res.json({
-        guildId,
-        lastCompletion: lastCompletion.text,
-        leaderboard: leaderboard.first,
-        ticker: buildTicker({ recentCompletions, leaderboard }),
-        lastCompletionMeta: lastCompletion.meta,
-        leaderboardRows: leaderboard.rows,
-        recentCompletions,
-        generatedAt: new Date().toISOString()
-      });
+      guildId,
+      lastCompletion: lastCompletion.text,
+      leaderboard: leaderboard.first,
+      ticker: buildTicker({ recentCompletions, leaderboard }),
+      lastCompletionMeta: lastCompletion.meta,
+      leaderboardRows: leaderboard.rows,
+      recentCompletions,
+
+  // ⭐ NEW FIELD (not sure which field but yolo)
+  myProgress: {
+    discordId: MY_DISCORD_ID,
+    completed: Number(myProgressRow?.completed || 0),
+    totalLegs
+  },
+
+  generatedAt: new Date().toISOString()
+});
+   
     } catch (error) {
       console.error("Failed to build RTW overlay payload", error);
       return res.status(500).json({ error: "Failed to build overlay payload" });
