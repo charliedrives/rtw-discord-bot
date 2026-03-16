@@ -77,16 +77,20 @@ async function announceCompletion({ guildId, discordId, legIndex, dep, arr, sour
   if (user) {
   const displayName = user.globalName || user.username;
 
-  db.prepare(`
-    INSERT INTO user_links (guild_id, discord_id, discord_name, linked_at)
-    VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(guild_id, discord_id)
-    DO UPDATE SET
-      discord_name = excluded.discord_name,
-      linked_at = datetime('now')
-  `).run(guildId, discordId, displayName);
-}
+  const existing = db.prepare(`
+    SELECT vatsim_cid
+    FROM user_links
+    WHERE guild_id = ? AND discord_id = ?
+  `).get(guildId, discordId);
 
+  const vatsimCid = existing?.vatsim_cid || `unknown-${discordId}`;
+
+  db.prepare(`
+    INSERT OR REPLACE INTO user_links
+    (guild_id, discord_id, vatsim_cid, discord_name, linked_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+  `).run(guildId, discordId, vatsimCid, displayName);
+}
   // Twitch message
   if (username.toLowerCase() === "charliedrives") {
 
