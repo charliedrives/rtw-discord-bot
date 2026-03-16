@@ -281,7 +281,7 @@ async function completeNextLeg({ interaction, guildId, userId }) {
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
     } else {
-      await interaction.reply({ content: "⚠️ Route not initialised here yet. Run **/rtw_setup**.", ephemeral: true });
+      await interaction.reply({ content: "⚠️ Route not initialised here yet. Run **/rtw_setup**.", flags: 64 });
     }
     return;
   }
@@ -292,7 +292,7 @@ async function completeNextLeg({ interaction, guildId, userId }) {
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply("🏁 You’ve already completed the full route!");
     } else {
-      await interaction.reply({ content: "🏁 You’ve already completed the full route!", ephemeral: true });
+      await interaction.reply({ content: "🏁 You’ve already completed the full route!", flags: 64 });
     }
     return;
   }
@@ -308,7 +308,7 @@ async function completeNextLeg({ interaction, guildId, userId }) {
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply({ content: msg, components: [] });
   } else {
-    await interaction.reply({ content: msg, ephemeral: true });
+    await interaction.reply({ content: msg, flags: 64 });
   }
 
   await announceCompletion({
@@ -356,11 +356,11 @@ client.on("interactionCreate", async (interaction) => {
     const userId = interaction.user.id;
 
     if (!guildId) {
-      await interaction.reply({ content: "Use this in a server.", ephemeral: true });
+      await interaction.reply({ content: "Use this in a server.", flags: 64 });
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
     await completeNextLeg({ interaction, guildId, userId });
     return;
   }
@@ -372,7 +372,7 @@ client.on("interactionCreate", async (interaction) => {
   const userId = interaction.user.id;
 
   if (!guildId) {
-    await interaction.reply({ content: "Use this command in a server.", ephemeral: true });
+    await interaction.reply({ content: "Use this command in a server.", flags: 64 });
     return;
   }
 
@@ -380,7 +380,7 @@ client.on("interactionCreate", async (interaction) => {
 
   try {
     if (interaction.commandName === "rtw_setup") {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
       RTW_ROUTE.forEach((leg, i) => {
         db.prepare(
@@ -475,7 +475,7 @@ client.on("interactionCreate", async (interaction) => {
       `**Leg ${next.leg_index}:** ${next.from_icao} → ${next.to_icao}\n` +
       `**Progress:** ${done}/${total}`,
     components: [row],
-    ephemeral: true
+    flags: 64
   });
 
   return;
@@ -558,7 +558,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "rtw_complete") {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
     await completeNextLeg({ interaction, guildId, userId });
     return;
     } 
@@ -572,20 +572,20 @@ client.on("interactionCreate", async (interaction) => {
         .get(guildId).c;
 
       if (!total) {
-        await interaction.reply({ content: "⚠️ Route not initialised here yet. Run **/rtw_setup**.", ephemeral: true });
+        await interaction.reply({ content: "⚠️ Route not initialised here yet. Run **/rtw_setup**.", flags: 64 });
         return;
       }
 
       const next = getNextLeg(guildId, userId);
       if (!next) {
-        await interaction.reply({ content: "🏁 You’ve already completed the full route!", ephemeral: true });
+        await interaction.reply({ content: "🏁 You’ve already completed the full route!", flags: 64 });
         return;
       }
 
       if (dep !== next.from_icao || arr !== next.to_icao) {
         await interaction.reply({
           content: `❌ Not your next leg.\nYour next leg is **${next.leg_index}: ${next.from_icao} → ${next.to_icao}**`,
-          ephemeral: true,
+          flags: 64,
         });
         return;
       }
@@ -607,7 +607,7 @@ client.on("interactionCreate", async (interaction) => {
       const cid = interaction.options.getString("cid", true).trim();
 
       if (!/^\d{4,8}$/.test(cid)) {
-        await interaction.reply({ content: "❌ CID should be numeric (e.g. 1234567).", ephemeral: true });
+        await interaction.reply({ content: "❌ CID should be numeric (e.g. 1234567).", flags: 64 });
         return;
       }
 
@@ -624,12 +624,12 @@ client.on("interactionCreate", async (interaction) => {
       `
       ).run(guildId, userId, cid, displayName);
 
-      await interaction.reply({ content: `✅ Linked VATSIM CID **${cid}** to <@${userId}>`, ephemeral: true });
+      await interaction.reply({ content: `✅ Linked VATSIM CID **${cid}** to <@${userId}>`, flags: 64 });
       return;
     }
 
     if (interaction.commandName === "vatsim_me") {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
       const row = db.prepare(
         `
@@ -649,7 +649,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "vatsim_debug") {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
 
   const link = db.prepare(`
     SELECT vatsim_cid
@@ -695,7 +695,7 @@ client.on("interactionCreate", async (interaction) => {
 }
 
     if (interaction.commandName === "vatsim_unlink") {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
       const row = db.prepare(
         `
@@ -722,7 +722,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "vatsim_pilots") {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: 64 });
 
       const rows = db.prepare(
         `
@@ -752,14 +752,14 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.reply({
         content: "📦 RTW Database Export",
         files: [file],
-        ephemeral: true,
+        flags: 64,
       });
       return;
     }
 
     if (interaction.commandName === "rtw_restore_db") {
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: 64 });
 
   const file = interaction.options.getAttachment("file", true);
 
@@ -779,11 +779,11 @@ client.on("interactionCreate", async (interaction) => {
   return;
 }
 
-    await interaction.reply({ content: "Unknown command.", ephemeral: true });
+    await interaction.reply({ content: "Unknown command.", flags: 64 });
   } catch (err) {
     console.error(err);
     if (!interaction.replied) {
-      await interaction.reply({ content: "Something went wrong.", ephemeral: true });
+      await interaction.reply({ content: "Something went wrong.", flags: 64 });
     }
   }
 });
