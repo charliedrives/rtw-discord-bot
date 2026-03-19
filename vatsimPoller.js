@@ -19,52 +19,52 @@ function haversineNm(lat1, lon1, lat2, lon2) {
 }
 
 const AIRPORTS = {
-  EGSS: { lat: 51.8850, lon: 0.2350 },
-  EGPD: { lat: 57.2019, lon: -2.1978 },
-  BIKF: { lat: 63.9850, lon: -22.6056 },
-  BGSF: { lat: 67.0122, lon: -50.7116 },
-  CYUL: { lat: 45.4706, lon: -73.7408 },
-  KDTW: { lat: 42.2162, lon: -83.3554 },
-  KDEN: { lat: 39.8561, lon: -104.6737 },
-  KLAS: { lat: 36.0840, lon: -115.1537 },
-  KLAX: { lat: 33.9425, lon: -118.4081 },
-  KSEA: { lat: 47.4502, lon: -122.3088 },
-  CYLW: { lat: 49.9561, lon: -119.3778 },
-  PANC: { lat: 61.1743, lon: -149.9983 },
-  UHPP: { lat: 53.1679, lon: 158.4537 },
-  UHSS: { lat: 46.8887, lon: 142.7173 },
-  RJTT: { lat: 35.5494, lon: 139.7798 },
-  RJBB: { lat: 34.4347, lon: 135.2440 },
-  RKSI: { lat: 37.4602, lon: 126.4407 },
-  ZSPD: { lat: 31.1443, lon: 121.8083 },
-  VHHH: { lat: 22.3080, lon: 113.9185 },
-  RCTP: { lat: 25.0797, lon: 121.2328 },
-  RPLL: { lat: 14.5086, lon: 121.0198 },
-  WBSB: { lat: 4.9442, lon: 114.9284 },
-  WAMM: { lat: 1.5493, lon: 124.9265 },
-  AYPY: { lat: -9.4434, lon: 147.22 },
-  YBCS: { lat: -16.8858, lon: 145.7553 },
-  YPDN: { lat: -12.4147, lon: 130.8775 },
-  WIII: { lat: -6.1256, lon: 106.6559 },
-  WSSS: { lat: 1.3644, lon: 103.9915 },
-  VTBS: { lat: 13.69, lon: 100.7501 },
-  VYYY: { lat: 16.9073, lon: 96.1332 },
-  VGHS: { lat: 23.8433, lon: 90.3978 },
-  VIJP: { lat: 26.8242, lon: 75.8122 },
-  OIIE: { lat: 35.4161, lon: 51.1522 },
-  UGTB: { lat: 41.6692, lon: 44.9547 },
-  LBSF: { lat: 42.6967, lon: 23.4114 },
-  LGAV: { lat: 37.9364, lon: 23.9445 },
-  LICC: { lat: 37.4668, lon: 15.0664 },
-  LIEE: { lat: 39.2515, lon: 9.0543 },
-  LEPA: { lat: 39.5517, lon: 2.7388 },
-  LXGB: { lat: 36.1512, lon: -5.3497 },
-  GMMX: { lat: 31.6069, lon: -8.0363 },
-  LPMA: { lat: 32.6979, lon: -16.7745 },
-  LPPT: { lat: 38.7742, lon: -9.1342 },
-  LFPG: { lat: 49.0097, lon: 2.5479 },
-  UKLL: { lat: 49.8125, lon: 23.9561 },
-  EHAM: { lat: 52.3105, lon: 4.7683 },
+  EGSS: { lat: 51.8850, lon: 0.2350, elevFt: 348 },
+  EGPD: { lat: 57.2019, lon: -2.1978, elevFt: 215 },
+  BIKF: { lat: 63.9850, lon: -22.6056, elevFt: 171 },
+  BGSF: { lat: 67.0122, lon: -50.7116, elevFt: 165 },
+  CYUL: { lat: 45.4706, lon: -73.7408, elevFt: 118 },
+  KDTW: { lat: 42.2162, lon: -83.3554, elevFt: 645 },
+  KDEN: { lat: 39.8561, lon: -104.6737, elevFt: 5431 },
+  KLAS: { lat: 36.0840, lon: -115.1537, elevFt: 2181 },
+  KLAX: { lat: 33.9425, lon: -118.4081, elevFt: 125 },
+  KSEA: { lat: 47.4502, lon: -122.3088, elevFt: 433 },
+  CYLW: { lat: 49.9561, lon: -119.3778, elevFt: 1421 },
+  PANC: { lat: 61.1743, lon: -149.9983, elevFt: 152 },
+  UHPP: { lat: 53.1679, lon: 158.4537, elevFt: 131 },
+  UHSS: { lat: 46.8887, lon: 142.7173, elevFt: 59 },
+  RJTT: { lat: 35.5494, lon: 139.7798, elevFt: 35 },
+  RJBB: { lat: 34.4347, lon: 135.2440, elevFt: 26 },
+  RKSI: { lat: 37.4602, lon: 126.4407, elevFt: 23 },
+  ZSPD: { lat: 31.1443, lon: 121.8083, elevFt: 13 },
+  VHHH: { lat: 22.3080, lon: 113.9185, elevFt: 28 },
+  RCTP: { lat: 25.0797, lon: 121.2328, elevFt: 106 },
+  RPLL: { lat: 14.5086, lon: 121.0198, elevFt: 75 },
+  WBSB: { lat: 4.9442, lon: 114.9284, elevFt: 73 },
+  WAMM: { lat: 1.5493, lon: 124.9265, elevFt: 264 },
+  AYPY: { lat: -9.4434, lon: 147.22, elevFt: 146 },
+  YBCS: { lat: -16.8858, lon: 145.7553, elevFt: 10 },
+  YPDN: { lat: -12.4147, lon: 130.8775, elevFt: 103 },
+  WIII: { lat: -6.1256, lon: 106.6559, elevFt: 34 },
+  WSSS: { lat: 1.3644, lon: 103.9915, elevFt: 22 },
+  VTBS: { lat: 13.69, lon: 100.7501, elevFt: 5 },
+  VYYY: { lat: 16.9073, lon: 96.1332, elevFt: 109 },
+  VGHS: { lat: 23.8433, lon: 90.3978, elevFt: 30 },
+  VIJP: { lat: 26.8242, lon: 75.8122, elevFt: 1263 },
+  OIIE: { lat: 35.4161, lon: 51.1522, elevFt: 3305 },
+  UGTB: { lat: 41.6692, lon: 44.9547, elevFt: 1624 },
+  LBSF: { lat: 42.6967, lon: 23.4114, elevFt: 1742 },
+  LGAV: { lat: 37.9364, lon: 23.9445, elevFt: 308 },
+  LICC: { lat: 37.4668, lon: 15.0664, elevFt: 39 },
+  LIEE: { lat: 39.2515, lon: 9.0543, elevFt: 13 },
+  LEPA: { lat: 39.5517, lon: 2.7388, elevFt: 27 },
+  LXGB: { lat: 36.1512, lon: -5.3497, elevFt: 12 },
+  GMMX: { lat: 31.6069, lon: -8.0363, elevFt: 1545 },
+  LPMA: { lat: 32.6979, lon: -16.7745, elevFt: 192 },
+  LPPT: { lat: 38.7742, lon: -9.1342, elevFt: 374 },
+  LFPG: { lat: 49.0097, lon: 2.5479, elevFt: 392 },
+  UKLL: { lat: 49.8125, lon: 23.9561, elevFt: 1071 },
+  EHAM: { lat: 52.3105, lon: 4.7683, elevFt: -11 },
 };
 
 const state = new Map();
@@ -91,6 +91,8 @@ function buildInitialState(overrides = {}) {
     looksCompleted: false,
     completedAtMs: null,
     awardedThisSession: false,
+    arrElevationFt: null,
+    heightAboveArrivalFt: null,
     ...overrides,
   };
 }
@@ -112,7 +114,7 @@ export function startVatsimAutoTracking({
   startRadiusNm = 25,
   endRadiusNm = 15,
   minDurationMinutes = 20,
-  maxArrivalAltitudeFt = 1000,
+  maxArrivalHeightAboveAirportFt = 1500,
   maxArrivalGroundspeedKt = 40,
   maxDepartureAltitudeFt = 3000,
   maxDepartureGroundspeedKt = 50,
@@ -131,8 +133,8 @@ export function startVatsimAutoTracking({
       s.durationMinutes >= minDurationMinutes &&
       Number.isFinite(s.finalArrivalDistanceNm) &&
       s.finalArrivalDistanceNm <= endRadiusNm &&
-      Number.isFinite(s.lastAlt) &&
-      s.lastAlt <= maxArrivalAltitudeFt &&
+      Number.isFinite(s.heightAboveArrivalFt) &&
+      s.heightAboveArrivalFt <= maxArrivalHeightAboveAirportFt &&
       Number.isFinite(s.lastGs) &&
       s.lastGs <= maxArrivalGroundspeedKt
     );
@@ -289,6 +291,9 @@ export function startVatsimAutoTracking({
 
           s.depAirportFound = !!depAirport;
           s.arrAirportFound = !!arrAirport;
+          s.arrElevationFt = Number.isFinite(arrAirport?.elevFt)
+            ? arrAirport.elevFt
+            : null;
 
           if (dep && !depAirport) {
             console.log(
@@ -326,11 +331,18 @@ export function startVatsimAutoTracking({
             s.arrDistanceNm = arrDist;
             s.finalArrivalDistanceNm = arrDist;
 
+            if (Number.isFinite(alt) && Number.isFinite(arrAirport.elevFt)) {
+              s.heightAboveArrivalFt = alt - arrAirport.elevFt;
+            } else {
+              s.heightAboveArrivalFt = null;
+            }
+
             if (arrDist <= endRadiusNm) {
               s.sawArrivalProximity = true;
             }
           } else {
             s.arrDistanceNm = null;
+            s.heightAboveArrivalFt = null;
           }
 
           s.looksCompleted = computeLooksCompleted(s);
