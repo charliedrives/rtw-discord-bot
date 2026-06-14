@@ -18,3 +18,4 @@ await rest.put(
 );
 
 console.log("✅ Guild commands registered");
+process.exit(0);

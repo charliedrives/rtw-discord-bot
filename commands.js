@@ -50,6 +50,10 @@ export const commands = [
     .setDescription("Show the RTW leaderboard"),
 
   new SlashCommandBuilder()
+    .setName("rtw_stats")
+    .setDescription("Show overall RTW campaign stats"),
+
+  new SlashCommandBuilder()
     .setName("rtw_check")
     .setDescription("Manual strict checkoff (must match your next leg)")
     .addStringOption(o => o.setName("dep").setRequired(true).setDescription("Departure ICAO"))

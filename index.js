@@ -6,8 +6,37 @@ import { startVatsimAutoTracking, getVatsimDebugStatus } from "./vatsimPoller.js
 import { startTwitch, postToTwitch, setDiscordClient } from "./twitch.js";
 import { startOverlayServer } from "./overlay-server.js";
 
+if (!process.env.DISCORD_TOKEN) {
+  console.error("Missing DISCORD_TOKEN. Set it in the bot host environment before starting.");
+  process.exit(1);
+}
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
+
+process.on("unhandledRejection", (err) => {
+  console.error("[process] unhandled rejection", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[process] uncaught exception", err);
+  process.exit(1);
+});
+
+client.on("error", (err) => {
+  console.error("[discord] client error", err);
+});
+
+client.on("warn", (message) => {
+  console.warn("[discord] warning", message);
+});
+
+client.on("shardDisconnect", (event) => {
+  console.warn("[discord] shard disconnected", {
+    code: event?.code,
+    reason: event?.reason,
+  });
+});
 
 /** Ensure guild settings row exists */
 function ensureGuildRow(guildId) {
@@ -173,7 +202,7 @@ async function backfillDiscordNames() {
 }
 
 
-function buildDailyPost(guildId) {
+function buildWeeklyPost(guildId) {
   const totalLegs = db
     .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
     .get(guildId).c;
@@ -191,13 +220,13 @@ function buildDailyPost(guildId) {
     )
     .all(guildId);
 
-  const recent24h = db
+  const recentWeek = db
     .prepare(
       `
       SELECT COUNT(*) AS c
       FROM completions
       WHERE guild_id=?
-        AND completed_at >= datetime('now','-24 hours')
+        AND completed_at >= datetime('now','-7 days')
     `
     )
     .get(guildId).c;
@@ -213,6 +242,34 @@ function buildDailyPost(guildId) {
     `
     )
     .all(guildId);
+
+  const rtwStats = db
+    .prepare(
+      `
+      SELECT
+        COUNT(*) AS total_flights,
+        COUNT(DISTINCT discord_id) AS unique_pilots,
+        SUM(CASE WHEN source='vatsim' THEN 1 ELSE 0 END) AS vatsim_count,
+        CAST(julianday('now') - julianday(MIN(completed_at)) AS INTEGER) AS days_running
+      FROM completions
+      WHERE guild_id=?
+    `
+    )
+    .get(guildId);
+
+  const mostActiveThisWeek = db
+    .prepare(
+      `
+      SELECT discord_id, COUNT(*) AS cnt
+      FROM completions
+      WHERE guild_id=?
+        AND completed_at >= datetime('now','-7 days')
+      GROUP BY discord_id
+      ORDER BY cnt DESC
+      LIMIT 1
+    `
+    )
+    .get(guildId);
 
   const lines = leaderboard.length
     ? leaderboard
@@ -231,13 +288,34 @@ function buildDailyPost(guildId) {
         .join("\n")
     : "_No completions logged yet._";
 
-  const hype =
-    recent24h > 0
-      ? `🔥 **${recent24h}** legs logged in the last 24h. Absolute scenes.`
-      : `😴 Quiet day… someone go send it.`;
+  const weekHype =
+    recentWeek > 0
+      ? `🔥 **${recentWeek}** legs logged in the last 7 days. Let's go!`
+      : `😴 Quiet week… someone go send it.`;
 
-  return `🌍✈️ **CHARLIE RTW DAILY UPDATE** ✈️🌍
-${hype}
+  const statsLines = [];
+  if (rtwStats && rtwStats.total_flights > 0) {
+    const daysRunning = rtwStats.days_running || 1;
+    const avgPerDay = (rtwStats.total_flights / daysRunning).toFixed(1);
+    const vatsimPct = Math.round((rtwStats.vatsim_count / rtwStats.total_flights) * 100);
+    statsLines.push(`📅 **Days running:** ${daysRunning}`);
+    statsLines.push(`✈️ **Total legs logged:** ${rtwStats.total_flights}`);
+    statsLines.push(`👥 **Pilots participating:** ${rtwStats.unique_pilots}`);
+    statsLines.push(`📈 **Avg flights/day:** ${avgPerDay}`);
+    statsLines.push(`🛰️ **VATSIM auto-tracked:** ${vatsimPct}%`);
+  }
+  if (mostActiveThisWeek) {
+    statsLines.push(`🌟 **Hottest pilot this week:** <@${mostActiveThisWeek.discord_id}> (${mostActiveThisWeek.cnt} legs)`);
+  }
+  const statsBlock = statsLines.length
+    ? statsLines.join("\n")
+    : "_No stats yet — fly something!_";
+
+  return `🌍✈️ **CHARLIE RTW WEEKLY UPDATE** ✈️🌍
+${weekHype}
+
+📊 **RTW STATS**
+${statsBlock}
 
 🏆 **LEADERBOARD (Top 10)**
 ${lines}
@@ -248,7 +326,7 @@ ${recentLines}
 🚀 Use **/rtw_next** to get your next mission.`;
 }
 
-async function postDailyUpdates() {
+async function postWeeklyUpdates() {
   const guilds = db
     .prepare(
       `
@@ -268,7 +346,7 @@ async function postDailyUpdates() {
       .get(g.guild_id).c;
     if (!total) continue;
 
-    await ch.send(buildDailyPost(g.guild_id)).catch(() => null);
+    await ch.send(buildWeeklyPost(g.guild_id)).catch(() => null);
   }
 }
 
@@ -343,7 +421,7 @@ await backfillDiscordNames();
     intervalMs: 120000,
   });
 
-  cron.schedule("0 9 * * *", postDailyUpdates, { timezone: "Europe/London" });
+  cron.schedule("0 9 * * 1", postWeeklyUpdates, { timezone: "Europe/London" });
 }); 
 
 
@@ -412,7 +490,7 @@ client.on("interactionCreate", async (interaction) => {
       `
       ).run(ch.id, guildId);
 
-      await interaction.reply(`✅ Daily RTW updates will post in ${ch} at **09:00 Europe/London**.`);
+      await interaction.reply(`✅ Weekly RTW updates will post in ${ch} every **Monday at 09:00 Europe/London**.`);
       return;
     }
 
@@ -554,6 +632,126 @@ client.on("interactionCreate", async (interaction) => {
 
       const lines = rows.map((r, i) => `${medal(i)} <@${r.discord_id}> — **${r.completed}/${total}**`);
       await interaction.editReply(`🏆 **RTW Leaderboard**\n${lines.join("\n")}`);
+      return;
+    }
+
+    if (interaction.commandName === "rtw_stats") {
+      await interaction.deferReply();
+
+      const totalLegs = db
+        .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
+        .get(guildId).c;
+
+      if (!totalLegs) {
+        await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+        return;
+      }
+
+      const rtwStats = db
+        .prepare(
+          `
+          SELECT
+            COUNT(*) AS total_flights,
+            COUNT(DISTINCT discord_id) AS unique_pilots,
+            SUM(CASE WHEN source='vatsim' THEN 1 ELSE 0 END) AS vatsim_count,
+            MIN(completed_at) AS first_flight,
+            CAST(julianday('now') - julianday(MIN(completed_at)) AS INTEGER) AS days_running
+          FROM completions
+          WHERE guild_id=?
+        `
+        )
+        .get(guildId);
+
+      if (!rtwStats || !rtwStats.total_flights) {
+        await interaction.editReply("No flights logged yet — be the first!");
+        return;
+      }
+
+      const weekFlights = db
+        .prepare(
+          `
+          SELECT COUNT(*) AS c
+          FROM completions
+          WHERE guild_id=?
+            AND completed_at >= datetime('now','-7 days')
+        `
+        )
+        .get(guildId).c;
+
+      const hotPilotWeek = db
+        .prepare(
+          `
+          SELECT discord_id, COUNT(*) AS cnt
+          FROM completions
+          WHERE guild_id=?
+            AND completed_at >= datetime('now','-7 days')
+          GROUP BY discord_id
+          ORDER BY cnt DESC
+          LIMIT 1
+        `
+        )
+        .get(guildId);
+
+      const busiestDay = db
+        .prepare(
+          `
+          SELECT DATE(completed_at) AS day, COUNT(*) AS cnt
+          FROM completions
+          WHERE guild_id=?
+          GROUP BY DATE(completed_at)
+          ORDER BY cnt DESC
+          LIMIT 1
+        `
+        )
+        .get(guildId);
+
+      const leader = db
+        .prepare(
+          `
+          SELECT discord_id, COUNT(*) AS completed
+          FROM completions
+          WHERE guild_id=?
+          GROUP BY discord_id
+          ORDER BY completed DESC
+          LIMIT 1
+        `
+        )
+        .get(guildId);
+
+      const daysRunning = rtwStats.days_running || 1;
+      const avgPerDay = (rtwStats.total_flights / daysRunning).toFixed(1);
+      const vatsimPct = Math.round((rtwStats.vatsim_count / rtwStats.total_flights) * 100);
+      const leaderPct = leader ? Math.round((leader.completed / totalLegs) * 100) : 0;
+
+      const daysToFinish = leader
+        ? Math.ceil((totalLegs - leader.completed) / (rtwStats.total_flights / daysRunning))
+        : null;
+
+      const lines = [
+        `📅 **Days running:** ${daysRunning}`,
+        `✈️ **Total legs logged:** ${rtwStats.total_flights} (across ${rtwStats.unique_pilots} pilot${rtwStats.unique_pilots === 1 ? "" : "s"})`,
+        `📈 **Avg flights/day:** ${avgPerDay}`,
+        `🔥 **Legs this week:** ${weekFlights}`,
+        `🛰️ **VATSIM auto-tracked:** ${vatsimPct}%`,
+      ];
+
+      if (busiestDay) {
+        lines.push(`📆 **Busiest day:** ${busiestDay.day} (${busiestDay.cnt} legs)`);
+      }
+
+      if (leader) {
+        lines.push(`🥇 **Leader:** <@${leader.discord_id}> — ${leader.completed}/${totalLegs} legs (${leaderPct}%)`);
+      }
+
+      if (hotPilotWeek) {
+        lines.push(`🌟 **Hottest pilot this week:** <@${hotPilotWeek.discord_id}> (${hotPilotWeek.cnt} legs)`);
+      }
+
+      if (daysToFinish !== null) {
+        lines.push(`🏁 **Est. days to leader finishing:** ~${daysToFinish} days (at current pace)`);
+      }
+
+      await interaction.editReply(`📊 **RTW CAMPAIGN STATS**\n\n${lines.join("\n")}`);
       return;
     }
 
@@ -748,7 +946,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "rtw_export_db") {
-      const file = "./rtw.sqlite";
+      const file = process.env.RTW_DB_PATH || "./data/rtw.sqlite";
       await interaction.reply({
         content: "📦 RTW Database Export",
         files: [file],
@@ -772,8 +970,21 @@ client.on("interactionCreate", async (interaction) => {
   const buffer = Buffer.from(await res.arrayBuffer());
 
   const fs = await import("fs");
+  const path = await import("path");
 
-  fs.writeFileSync("./data/rtw.sqlite", buffer);
+  const dbPath = process.env.RTW_DB_PATH || "./data/rtw.sqlite";
+  const dbDir = path.dirname(dbPath);
+  if (dbDir && dbDir !== ".") {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
+  if (fs.existsSync(dbPath)) {
+    const backupPath = `${dbPath}.backup-${Date.now()}`;
+    fs.copyFileSync(dbPath, backupPath);
+    console.log(`[restore] backed up existing database to ${backupPath}`);
+  }
+
+  fs.writeFileSync(dbPath, buffer);
 
   await interaction.editReply("✅ Database restored successfully. Restart the bot service.");
   return;
@@ -782,10 +993,15 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.reply({ content: "Unknown command.", flags: 64 });
   } catch (err) {
     console.error(err);
-    if (!interaction.replied) {
-      await interaction.reply({ content: "Something went wrong.", flags: 64 });
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content: "Something went wrong.", components: [] }).catch(() => null);
+    } else {
+      await interaction.reply({ content: "Something went wrong.", flags: 64 }).catch(() => null);
     }
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch((err) => {
+  console.error("[discord] login failed", err);
+  process.exit(1);
+});
