@@ -751,7 +751,14 @@ client.on("interactionCreate", async (interaction) => {
         lines.push(`🏁 **Est. days to leader finishing:** ~${daysToFinish} days (at current pace)`);
       }
 
-      await interaction.editReply(`📊 **RTW CAMPAIGN STATS**\n\n${lines.join("\n")}`);
+      const statsMsg = `📊 **RTW CAMPAIGN STATS**\n\n${lines.join("\n")}`;
+      await interaction.editReply(statsMsg);
+
+      const settings = getGuildSettings(guildId);
+      if (settings.daily_channel_id && settings.daily_channel_id !== interaction.channelId) {
+        const dailyCh = await client.channels.fetch(settings.daily_channel_id).catch(() => null);
+        if (dailyCh) await dailyCh.send(statsMsg).catch(() => null);
+      }
       return;
     }
 
