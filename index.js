@@ -158,6 +158,283 @@ function medal(i) {
   return "🏁";
 }
 
+function fmtDate(d) {
+  return new Date(d + "T00:00:00Z").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function compressRanges(nums) {
+  const sorted = [...new Set(nums)].sort((a, b) => a - b);
+  const ranges = [];
+  let start = sorted[0];
+  let prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    const n = sorted[i];
+    if (n === prev + 1) {
+      prev = n;
+      continue;
+    }
+    ranges.push(start === prev ? `${start}` : `${start}–${prev}`);
+    start = n;
+    prev = n;
+  }
+  return ranges.join(", ");
+}
+
+function longestStreak(dates) {
+  if (!dates.length) return { length: 0, start: null, end: null };
+  let best = { length: 1, start: dates[0], end: dates[0] };
+  let curStart = dates[0];
+  let curLen = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const diff = Math.round(
+      (new Date(dates[i] + "T00:00:00Z") - new Date(dates[i - 1] + "T00:00:00Z")) / 86400000
+    );
+    if (diff === 1) {
+      curLen++;
+    } else {
+      curLen = 1;
+      curStart = dates[i];
+    }
+    if (curLen > best.length) best = { length: curLen, start: curStart, end: dates[i] };
+  }
+  return best;
+}
+
+function longestGap(dates) {
+  let best = { days: 0, from: null, to: null };
+  for (let i = 1; i < dates.length; i++) {
+    const diff = Math.round(
+      (new Date(dates[i] + "T00:00:00Z") - new Date(dates[i - 1] + "T00:00:00Z")) / 86400000
+    );
+    if (diff > best.days) best = { days: diff, from: dates[i - 1], to: dates[i] };
+  }
+  return best;
+}
+
+function buildFarewellMessage(guildId, totalLegs) {
+  const overall = db
+    .prepare(
+      `
+      SELECT
+        COUNT(*) AS total_flights,
+        COUNT(DISTINCT discord_id) AS unique_pilots,
+        MIN(completed_at) AS first_flight,
+        MAX(completed_at) AS last_flight,
+        CAST(julianday(MAX(completed_at)) - julianday(MIN(completed_at)) AS INTEGER) AS days_running
+      FROM completions WHERE guild_id=?
+    `
+    )
+    .get(guildId);
+
+  if (!overall || !overall.total_flights) return null;
+
+  const leaderboard = db
+    .prepare(
+      `
+      SELECT discord_id, COUNT(*) AS completed, MIN(completed_at) AS first_leg, MAX(completed_at) AS last_leg
+      FROM completions WHERE guild_id=?
+      GROUP BY discord_id
+      ORDER BY completed DESC
+    `
+    )
+    .all(guildId);
+
+  const finishers = leaderboard.filter((r) => r.completed >= totalLegs);
+
+  const busiestDayRows = db
+    .prepare(
+      `
+      SELECT DATE(completed_at) AS day, COUNT(*) AS cnt
+      FROM completions WHERE guild_id=?
+      GROUP BY DATE(completed_at)
+      ORDER BY cnt DESC
+    `
+    )
+    .all(guildId);
+  const busiestCnt = busiestDayRows[0]?.cnt || 0;
+  const busiestDays = busiestDayRows.filter((r) => r.cnt === busiestCnt);
+
+  const soloSprint = db
+    .prepare(
+      `
+      SELECT discord_id, DATE(completed_at) AS day, COUNT(*) AS cnt
+      FROM completions WHERE guild_id=?
+      GROUP BY discord_id, DATE(completed_at)
+      ORDER BY cnt DESC, day ASC
+      LIMIT 1
+    `
+    )
+    .get(guildId);
+
+  let bestStreak = { discord_id: null, length: 0, start: null, end: null };
+  let bestComeback = { discord_id: null, days: 0, from: null, to: null };
+  for (const r of leaderboard) {
+    const dates = db
+      .prepare(
+        `
+        SELECT DISTINCT DATE(completed_at) AS d FROM completions
+        WHERE guild_id=? AND discord_id=? ORDER BY d ASC
+      `
+      )
+      .all(guildId, r.discord_id)
+      .map((row) => row.d);
+
+    const streak = longestStreak(dates);
+    if (streak.length > bestStreak.length) bestStreak = { discord_id: r.discord_id, ...streak };
+
+    const gap = longestGap(dates);
+    if (gap.days > bestComeback.days) bestComeback = { discord_id: r.discord_id, ...gap };
+  }
+
+  const communityDates = db
+    .prepare(`SELECT DISTINCT DATE(completed_at) AS d FROM completions WHERE guild_id=? ORDER BY d ASC`)
+    .all(guildId)
+    .map((r) => r.d);
+  const communityStreak = longestStreak(communityDates);
+
+  const vatsimChampion = db
+    .prepare(
+      `
+      SELECT discord_id,
+        SUM(CASE WHEN source='vatsim' THEN 1 ELSE 0 END) AS vatsim,
+        COUNT(*) AS total
+      FROM completions WHERE guild_id=?
+      GROUP BY discord_id
+      HAVING vatsim > 0
+      ORDER BY vatsim DESC
+      LIMIT 1
+    `
+    )
+    .get(guildId);
+
+  const legCounts = db
+    .prepare(`SELECT leg_index, COUNT(*) AS cnt FROM completions WHERE guild_id=? GROUP BY leg_index`)
+    .all(guildId);
+
+  let legSection = "";
+  if (legCounts.length) {
+    const counts = legCounts.map((r) => r.cnt);
+    const maxCnt = Math.max(...counts);
+    const minCnt = Math.min(...counts);
+    if (maxCnt !== minCnt) {
+      const mostRange = compressRanges(legCounts.filter((r) => r.cnt === maxCnt).map((r) => r.leg_index));
+      const leastRange = compressRanges(legCounts.filter((r) => r.cnt === minCnt).map((r) => r.leg_index));
+      legSection =
+        `🗺️ **WHERE EVERYONE FLEW (AND DIDN'T)**\n` +
+        `Legs ${mostRange} were flown **${maxCnt} times each** — the most-repeated stretch. ` +
+        `Legs ${leastRange} were completed only **${minCnt} time${minCnt === 1 ? "" : "s"} each** — the road less flown.`;
+    }
+  }
+
+  const daysRunning = overall.days_running || 0;
+  const lines = [];
+
+  lines.push(`🌍✈️ **RTW1 — FINAL TRANSMISSION** ✈️🌍`);
+  lines.push("");
+  lines.push(
+    `After **${daysRunning} days** and **${overall.total_flights} legs** logged across the ${totalLegs}-leg route, RTW1 signs off. Thanks to all **${overall.unique_pilots} pilot${overall.unique_pilots === 1 ? "" : "s"}** who flew it — RTW2 is inbound. Here's the closing report.`
+  );
+
+  if (finishers.length) {
+    const fastest = [...finishers].sort(
+      (a, b) =>
+        new Date(a.last_leg) - new Date(a.first_leg) - (new Date(b.last_leg) - new Date(b.first_leg))
+    )[0];
+    const finishDays = Math.round((new Date(fastest.last_leg) - new Date(fastest.first_leg)) / 86400000);
+    lines.push("");
+    lines.push(`🏆 **THE ROUTE WAS COMPLETED**`);
+    if (finishers.length === 1) {
+      lines.push(
+        `<@${fastest.discord_id}> flew all **${totalLegs}/${totalLegs}** legs — the only pilot to circumnavigate the globe on RTW1, finishing in just **${finishDays} days**.`
+      );
+    } else {
+      const names = finishers.map((f) => `<@${f.discord_id}>`).join(", ");
+      lines.push(
+        `${finishers.length} pilots completed the full route: ${names}. Fastest circumnavigation: <@${fastest.discord_id}> in just **${finishDays} days**.`
+      );
+    }
+  } else if (leaderboard.length) {
+    const closest = leaderboard[0];
+    lines.push("");
+    lines.push(`🏆 **CLOSEST TO THE FINISH**`);
+    lines.push(
+      `Nobody completed the full route before sunset — closest was <@${closest.discord_id}> at **${closest.completed}/${totalLegs}** legs.`
+    );
+  }
+
+  if (bestStreak.discord_id) {
+    lines.push("");
+    lines.push(`🔥 **BIGGEST STREAK**`);
+    let streakLine = `<@${bestStreak.discord_id}> holds the individual record at **${bestStreak.length} consecutive day${bestStreak.length === 1 ? "" : "s"}** flying (${fmtDate(bestStreak.start)}–${fmtDate(bestStreak.end)})`;
+    if (communityStreak.length > bestStreak.length) {
+      streakLine += ` — but the whole squadron beat that together, logging a completion **every day for ${communityStreak.length} days straight** (${fmtDate(communityStreak.start)}–${fmtDate(communityStreak.end)}).`;
+    } else {
+      streakLine += ".";
+    }
+    lines.push(streakLine);
+  }
+
+  if (busiestDays.length) {
+    lines.push("");
+    lines.push(`⚡ **BUSIEST DAY**`);
+    const dayList = busiestDays.map((r) => fmtDate(r.day)).join(" and ");
+    lines.push(
+      busiestDays.length > 1
+        ? `Tied at **${busiestCnt} legs**: ${dayList}.`
+        : `${dayList} — **${busiestCnt} legs** logged in a single day.`
+    );
+  }
+
+  if (soloSprint) {
+    lines.push("");
+    lines.push(`🚀 **BEST SOLO SPRINT**`);
+    lines.push(
+      `<@${soloSprint.discord_id}> flew **${soloSprint.cnt} legs in one day** (${fmtDate(soloSprint.day)}) — the most by any pilot in a single sitting.`
+    );
+  }
+
+  if (bestComeback.discord_id && bestComeback.days > 0) {
+    lines.push("");
+    lines.push(`🌙 **BEST COMEBACK**`);
+    const cameBackOnFinalDay = bestComeback.to === overall.last_flight.slice(0, 10);
+    const closer = cameBackOnFinalDay
+      ? `to log the campaign's very last completion (${fmtDate(bestComeback.to)})`
+      : `on ${fmtDate(bestComeback.to)}`;
+    lines.push(`<@${bestComeback.discord_id}> vanished for **${bestComeback.days} days** — then returned ${closer}.`);
+  }
+
+  if (vatsimChampion) {
+    const pct = Math.round((vatsimChampion.vatsim / vatsimChampion.total) * 100);
+    lines.push("");
+    lines.push(`🛰️ **VATSIM AUTO-TRACK CHAMPION**`);
+    lines.push(
+      `<@${vatsimChampion.discord_id}> — **${vatsimChampion.vatsim} of ${vatsimChampion.total}** legs auto-tracked via VATSIM (${pct}%).`
+    );
+  }
+
+  if (legSection) {
+    lines.push("");
+    lines.push(legSection);
+  }
+
+  lines.push("");
+  lines.push(`🏁 **FINAL LEADERBOARD**`);
+  leaderboard.forEach((r, i) => {
+    const finished = r.completed >= totalLegs;
+    const pctSuffix = i === 0 ? ` (${Math.round((r.completed / totalLegs) * 100)}%)` : "";
+    lines.push(`${medal(i)} <@${r.discord_id}> — ${r.completed}/${totalLegs}${pctSuffix}${finished ? " 🏆" : ""}`);
+  });
+
+  lines.push("");
+  lines.push(`Thanks for flying with RTW1. See you on the new route. ✈️🌍`);
+
+  return lines.join("\n");
+}
+
 async function backfillDiscordNames() {
   const rows = db.prepare(`
     SELECT DISTINCT guild_id, discord_id
@@ -762,11 +1039,39 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.commandName === "rtw_farewell") {
+      await interaction.deferReply();
+
+      const totalLegs = db
+        .prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`)
+        .get(guildId).c;
+
+      if (!totalLegs) {
+        await interaction.editReply("⚠️ Route not initialised here yet. Run **/rtw_setup**.");
+        return;
+      }
+
+      const farewellMsg = buildFarewellMessage(guildId, totalLegs);
+      if (!farewellMsg) {
+        await interaction.editReply("No flights logged yet — nothing to send off.");
+        return;
+      }
+
+      await interaction.editReply(farewellMsg);
+
+      const settings = getGuildSettings(guildId);
+      if (settings.announce_channel_id && settings.announce_channel_id !== interaction.channelId) {
+        const announceCh = await client.channels.fetch(settings.announce_channel_id).catch(() => null);
+        if (announceCh) await announceCh.send(farewellMsg).catch(() => null);
+      }
+      return;
+    }
+
     if (interaction.commandName === "rtw_complete") {
     await interaction.deferReply({ flags: 64 });
     await completeNextLeg({ interaction, guildId, userId });
     return;
-    } 
+    }
 
     if (interaction.commandName === "rtw_check") {
       const dep = interaction.options.getString("dep", true).toUpperCase().trim();

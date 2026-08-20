@@ -54,6 +54,11 @@ export const commands = [
     .setDescription("Show overall RTW campaign stats"),
 
   new SlashCommandBuilder()
+    .setName("rtw_farewell")
+    .setDescription("Admin: post the RTW1 sunset stats summary")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("rtw_check")
     .setDescription("Manual strict checkoff (must match your next leg)")
     .addStringOption(o => o.setName("dep").setRequired(true).setDescription("Departure ICAO"))
