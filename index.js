@@ -435,6 +435,27 @@ function buildFarewellMessage(guildId, totalLegs) {
   return lines.join("\n");
 }
 
+const archiveAndResetSeason = db.transaction((guildId, season) => {
+  db.prepare(
+    `
+    INSERT INTO route_legs_archive (season, guild_id, leg_index, from_icao, to_icao, archived_at)
+    SELECT ?, guild_id, leg_index, from_icao, to_icao, datetime('now')
+    FROM route_legs WHERE guild_id=?
+  `
+  ).run(season, guildId);
+
+  db.prepare(
+    `
+    INSERT INTO completions_archive (season, guild_id, discord_id, leg_index, completed_at, source, dep, arr, archived_at)
+    SELECT ?, guild_id, discord_id, leg_index, completed_at, source, dep, arr, datetime('now')
+    FROM completions WHERE guild_id=?
+  `
+  ).run(season, guildId);
+
+  db.prepare(`DELETE FROM completions WHERE guild_id=?`).run(guildId);
+  db.prepare(`DELETE FROM route_legs WHERE guild_id=?`).run(guildId);
+});
+
 async function backfillDiscordNames() {
   const rows = db.prepare(`
     SELECT DISTINCT guild_id, discord_id
@@ -1064,6 +1085,33 @@ client.on("interactionCreate", async (interaction) => {
         const announceCh = await client.channels.fetch(settings.announce_channel_id).catch(() => null);
         if (announceCh) await announceCh.send(farewellMsg).catch(() => null);
       }
+      return;
+    }
+
+    if (interaction.commandName === "rtw_new_season") {
+      await interaction.deferReply({ flags: 64 });
+
+      const label = interaction.options.getString("label", true).trim();
+
+      const legCount = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c;
+      if (!legCount) {
+        await interaction.editReply("⚠️ No route loaded here yet — nothing to archive.");
+        return;
+      }
+
+      try {
+        archiveAndResetSeason(guildId, label);
+      } catch (err) {
+        if (err.code === "SQLITE_CONSTRAINT_PRIMARYKEY") {
+          await interaction.editReply(`⚠️ Season label **${label}** is already archived. Use a different label.`);
+          return;
+        }
+        throw err;
+      }
+
+      await interaction.editReply(
+        `✅ Archived the current route and progress as **${label}** and cleared this server. Run **/rtw_setup** to load the new route.`
+      );
       return;
     }
 

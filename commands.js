@@ -59,6 +59,14 @@ export const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("rtw_new_season")
+    .setDescription("Admin: archive the current route/progress and clear this server for a new season")
+    .addStringOption(o =>
+      o.setName("label").setDescription("Archive label for the season being retired, e.g. rtw1").setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("rtw_check")
     .setDescription("Manual strict checkoff (must match your next leg)")
     .addStringOption(o => o.setName("dep").setRequired(true).setDescription("Departure ICAO"))

@@ -65,6 +65,55 @@ const AIRPORTS = {
   LFPG: { lat: 49.0097, lon: 2.5479, elevFt: 392 },
   UKLL: { lat: 49.8125, lon: 23.9561, elevFt: 1071 },
   EHAM: { lat: 52.3105, lon: 4.7683, elevFt: -11 },
+
+  // RTW2 — The Southern Road
+  PHNL: { lat: 21.3187, lon: -157.9220, elevFt: 13 }, // Honolulu International Airport
+  PKMJ: { lat: 7.0648, lon: 171.2720, elevFt: 6 }, // Marshall Islands International Airport
+  NVVV: { lat: -17.6993, lon: 168.3200, elevFt: 70 }, // Port Vila Bauerfield Airport
+  NZAA: { lat: -37.0081, lon: 174.7920, elevFt: 23 }, // Auckland International Airport
+  NZQN: { lat: -45.0211, lon: 168.7390, elevFt: 1171 }, // Queenstown International Airport
+  YSSY: { lat: -33.9461, lon: 151.1770, elevFt: 21 }, // Sydney Kingsford Smith International Airport
+  YBHM: { lat: -20.3581, lon: 148.9520, elevFt: 15 }, // Hamilton Island Airport
+  WPOC: { lat: -9.1981, lon: 124.3430, elevFt: 0 }, // Oecussi Airport
+  WMKK: { lat: 2.7456, lon: 101.7100, elevFt: 69 }, // Kuala Lumpur International Airport
+  WITT: { lat: 5.5235, lon: 95.4204, elevFt: 65 }, // Sultan Iskandarmuda Airport
+  VCBI: { lat: 7.1808, lon: 79.8841, elevFt: 30 }, // Bandaranaike International Colombo Airport
+  VRMM: { lat: 4.1918, lon: 73.5291, elevFt: 6 }, // Male International Airport
+  FJDG: { lat: -7.3133, lon: 72.4111, elevFt: 9 }, // Diego Garcia Naval Support Facility
+  FSIA: { lat: -4.6743, lon: 55.5218, elevFt: 10 }, // Seychelles International Airport
+  FIMP: { lat: -20.4302, lon: 57.6836, elevFt: 186 }, // Sir Seewoosagur Ramgoolam International Airport
+  FMMI: { lat: -18.7969, lon: 47.4788, elevFt: 4198 }, // Ivato Airport
+  HKJK: { lat: -1.3192, lon: 36.9278, elevFt: 5330 }, // Jomo Kenyatta International Airport
+  HRYR: { lat: -1.9686, lon: 30.1395, elevFt: 4859 }, // Kigali International Airport
+  HTDA: { lat: -6.8781, lon: 39.2026, elevFt: 182 }, // Mwalimu Julius K. Nyerere International Airport
+  FLKK: { lat: -15.3308, lon: 28.4526, elevFt: 3779 }, // Kenneth Kaunda International Airport
+  FQMA: { lat: -25.9208, lon: 32.5726, elevFt: 145 }, // Maputo Airport
+  FAOR: { lat: -26.1333, lon: 28.2500, elevFt: 5558 }, // O. R. Tambo International Airport
+  FALE: { lat: -29.6144, lon: 31.1197, elevFt: 295 }, // King Shaka International Airport
+  FACT: { lat: -33.9648, lon: 18.6017, elevFt: 151 }, // Cape Town International Airport
+  FYWH: { lat: -22.4799, lon: 17.4709, elevFt: 5640 }, // Hosea Kutako International Airport (Windhoek)
+  FNBJ: { lat: -9.0468, lon: 13.5072, elevFt: 522 }, // Dr. Antonio Agostinho Neto International Airport (Luanda)
+  DNMM: { lat: 6.5774, lon: 3.3212, elevFt: 135 }, // Murtala Muhammed International Airport
+  GFLL: { lat: 8.6164, lon: -13.1955, elevFt: 84 }, // Lungi International Airport
+  GOBD: { lat: 14.6711, lon: -17.0669, elevFt: 289 }, // Blaise Diagne International Airport
+  SBFZ: { lat: -3.7763, lon: -38.5326, elevFt: 82 }, // Pinto Martins International Airport
+  SBGL: { lat: -22.8100, lon: -43.2506, elevFt: 28 }, // Galeao - Antonio Carlos Jobim International Airport
+  SBGR: { lat: -23.4356, lon: -46.4731, elevFt: 2459 }, // Guarulhos International Airport
+  SGAS: { lat: -25.2400, lon: -57.5200, elevFt: 292 }, // Silvio Pettirossi International Airport
+  SABE: { lat: -34.5592, lon: -58.4156, elevFt: 18 }, // Jorge Newbery Airpark
+  SCEL: { lat: -33.3930, lon: -70.7858, elevFt: 1555 }, // Comodoro Arturo Merino Benitez International Airport
+  SLLP: { lat: -16.5133, lon: -68.1923, elevFt: 13355 }, // El Alto International Airport
+  SEQM: { lat: -0.1292, lon: -78.3575, elevFt: 9200 }, // Mariscal Sucre International Airport
+  SKPS: { lat: 1.3962, lon: -77.2915, elevFt: 5951 }, // Antonio Narino Airport
+  SKBO: { lat: 4.7016, lon: -74.1469, elevFt: 8361 }, // El Dorado International Airport
+  SVCS: { lat: 10.2861, lon: -66.8161, elevFt: 2145 }, // Oscar Machado Zuluaga Airport
+  TVSA: { lat: 13.1627, lon: -61.1514, elevFt: 109 }, // Argyle International Airport
+  TNCM: { lat: 18.0410, lon: -63.1089, elevFt: 13 }, // Princess Juliana International Airport
+  MKJS: { lat: 18.5037, lon: -77.9134, elevFt: 4 }, // Sangster International Airport
+  MHTG: { lat: 14.0609, lon: -87.2172, elevFt: 3294 }, // Toncontin International Airport
+  MMMX: { lat: 19.4363, lon: -99.0721, elevFt: 7316 }, // Licenciado Benito Juarez International Airport
+  MMSD: { lat: 23.1518, lon: -109.7210, elevFt: 374 }, // Los Cabos International Airport
+  KSAN: { lat: 32.7336, lon: -117.1900, elevFt: 17 }, // San Diego International Airport
 };
 
 const state = new Map();
