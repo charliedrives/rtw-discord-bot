@@ -758,6 +758,8 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.commandName === "rtw_setup") {
       await interaction.deferReply({ flags: 64 });
 
+      const alreadyLoaded = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c > 0;
+
       RTW_ROUTE.forEach((leg, i) => {
         db.prepare(
           `
@@ -768,6 +770,21 @@ client.on("interactionCreate", async (interaction) => {
       });
 
       await interaction.editReply("✅ RTW route loaded.");
+
+      if (!alreadyLoaded) {
+        const [firstDep, firstArr] = RTW_ROUTE[0];
+        const announceMsg =
+          `🌍✈️ **A NEW RTW SEASON HAS LAUNCHED** ✈️🌍\n\n` +
+          `A fresh **${RTW_ROUTE.length}-leg** route is live! First leg: **${firstDep} → ${firstArr}**.\n` +
+          `Use **/rtw_next** to see your next leg, then **/rtw_complete** or **/rtw_check** to log it. Good luck out there!`;
+
+        const settings = getGuildSettings(guildId);
+        const announceCh = settings.announce_channel_id
+          ? await client.channels.fetch(settings.announce_channel_id).catch(() => null)
+          : interaction.channel || (await client.channels.fetch(interaction.channelId).catch(() => null));
+        if (announceCh) await announceCh.send(announceMsg).catch(() => null);
+      }
+
       return;
     }
 
