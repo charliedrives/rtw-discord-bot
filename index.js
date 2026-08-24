@@ -14,6 +14,8 @@ if (!process.env.DISCORD_TOKEN) {
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
 
+const RTW2_LAUNCH_DATE = new Date("2026-09-01T00:00:00Z");
+
 process.on("unhandledRejection", (err) => {
   console.error("[process] unhandled rejection", err);
 });
@@ -757,6 +759,17 @@ client.on("interactionCreate", async (interaction) => {
   try {
     if (interaction.commandName === "rtw_setup") {
       await interaction.deferReply({ flags: 64 });
+
+      if (Date.now() < RTW2_LAUNCH_DATE.getTime()) {
+        const launchStr = RTW2_LAUNCH_DATE.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          timeZone: "UTC",
+        });
+        await interaction.editReply(`⚠️ RTW2 doesn't launch until **${launchStr}**. Hang tight!`);
+        return;
+      }
 
       const alreadyLoaded = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c > 0;
 
