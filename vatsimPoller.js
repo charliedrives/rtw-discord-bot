@@ -114,6 +114,13 @@ const AIRPORTS = {
   MMMX: { lat: 19.4363, lon: -99.0721, elevFt: 7316 }, // Licenciado Benito Juarez International Airport
   MMSD: { lat: 23.1518, lon: -109.7210, elevFt: 374 }, // Los Cabos International Airport
   KSAN: { lat: 32.7336, lon: -117.1900, elevFt: 17 }, // San Diego International Airport
+  YBAS: { lat: -23.8067, lon: 133.9020, elevFt: 1789 }, // Alice Springs Airport
+  WICA: { lat: -6.6477, lon: 108.1658, elevFt: 134 }, // Majalengka Kertajati International Airport
+  VTSP: { lat: 8.1132, lon: 98.3169, elevFt: 82 }, // Phuket International Airport
+  FHAW: { lat: -7.9696, lon: -14.3937, elevFt: 278 }, // RAF Ascension Island (Wideawake)
+  EGYP: { lat: -51.8228, lon: -58.4472, elevFt: 244 }, // Mount Pleasant Airport, Falkland Islands
+  SAWH: { lat: -54.8433, lon: -68.2958, elevFt: 102 }, // Malvinas Argentinas Airport, Ushuaia
+  SBEG: { lat: -3.0386, lon: -60.0497, elevFt: 264 }, // Eduardo Gomes International Airport, Manaus
 };
 
 const state = new Map();
