@@ -1,8 +1,15 @@
 import Database from "better-sqlite3";
+import fs from "fs";
+import path from "path";
 
-export function openDb(path = "./data/rtw.sqlite") {
-  console.log("[db] opening sqlite database:", path);
-  const db = new Database(path);
+export function openDb(dbPath = process.env.RTW_DB_PATH || "./data/rtw.sqlite") {
+  const dbDir = path.dirname(dbPath);
+  if (dbDir && dbDir !== ".") {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
+  console.log("[db] opening sqlite database:", dbPath);
+  const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
 
   db.exec(`
@@ -40,6 +47,29 @@ export function openDb(path = "./data/rtw.sqlite") {
       linked_at TEXT,
       PRIMARY KEY (guild_id, discord_id),
       UNIQUE (guild_id, vatsim_cid)
+    );
+
+    CREATE TABLE IF NOT EXISTS route_legs_archive (
+      season TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      leg_index INTEGER NOT NULL,
+      from_icao TEXT NOT NULL,
+      to_icao TEXT NOT NULL,
+      archived_at TEXT NOT NULL,
+      PRIMARY KEY (season, guild_id, leg_index)
+    );
+
+    CREATE TABLE IF NOT EXISTS completions_archive (
+      season TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      discord_id TEXT NOT NULL,
+      leg_index INTEGER NOT NULL,
+      completed_at TEXT NOT NULL,
+      source TEXT NOT NULL,
+      dep TEXT NOT NULL,
+      arr TEXT NOT NULL,
+      archived_at TEXT NOT NULL,
+      PRIMARY KEY (season, guild_id, discord_id, leg_index)
     );
   `);
 
