@@ -16,6 +16,16 @@ const db = openDb();
 
 const RTW2_LAUNCH_DATE = new Date("2026-09-01T00:00:00Z");
 
+const RTW2_INTRO_PARAGRAPHS = [
+  `Starting at LAX, your ETOPS flying is immediately put to the test as we begin our tour of the islands. After landing in Hawaii, we set course for Auckland, routing via the Marshall Islands and Vanuatu. The demanding approach into Queenstown awaits before we turn towards Sydney and then on to spectacular Hamilton Island in Queensland. Our final Australian stop is Alice Springs, from where we head north into the Southern Asia leg, visiting Timor-Leste, Indonesia and the picturesque coastal airport of Phuket, Thailand.`,
+  `Paradise continues with a flight to the Maldives via Colombo, Sri Lanka, before turning south towards the British territory of Diego Garcia. Here, we will likely find ourselves parked alongside an impressive array of US military hardware. And if you feel the need to top up your tan, there are plenty more tropical destinations ahead, with stops in the Seychelles and Mauritius before we reach Madagascar.`,
+  `The African leg begins here. Kenya, Rwanda, Tanzania, Zambia and Mozambique are all on the itinerary, followed by multiple stops across South Africa. Two further legs through Namibia and Angola round off this part of the journey before we head westerly across the Atlantic.`,
+  `Ascension Island, a volcanic outpost eight degrees south of the equator, may not sound like much — but it is home to Wideawake Airfield, where the RAF staged operations for the retaking of the Falklands in 1982 and from which Operation Black Buck was launched. You will land on that same historic runway before setting course for Brazil.`,
+  `Our South American adventure begins in Fortaleza, followed by the spectacular descent across Guanabara Bay into Rio de Janeiro. From there, we head towards Argentina via Paraguay, taking on the demanding approach into Jorge Newbery Airport. Our history lesson continues with a landing at Mount Pleasant in the Falkland Islands, before returning to Argentina and Ushuaia in Tierra del Fuego — the world's southernmost international airport.`,
+  `Arturo Merino Benítez International Airport in Chile is next, as we turn north towards the most challenging section of the tour. La Paz awaits at an elevation of 13,325 feet, making it the highest international airport in the world. A couple of legs later comes perhaps the ultimate test of flying skill: the tabletop runway of Antonio Nariño Airport in Colombia, known to many pilots as "the aircraft carrier." South America still has one more challenge in store a few legs later, with another demanding approach into Óscar Machado Zuloaga International Airport outside Caracas, Venezuela.`,
+  `And then, back into paradise. Our Caribbean leg takes us through St Vincent and the Grenadines before the legendary Princess Juliana International Airport on Sint Maarten. From there, we make our way towards Mexico City via Jamaica and Honduras, before partying hard in Los Cabos. Finally, we turn north once more for San Diego before embarking on the Champagne Leg of the tour, the last flight that brings us back to where it all began — Los Angeles.\n\nRemember, this is not a race. It's an experience. Welcome to RTW 2: The Southern Loop.`,
+];
+
 process.on("unhandledRejection", (err) => {
   console.error("[process] unhandled rejection", err);
 });
@@ -1142,6 +1152,33 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.editReply(
         `✅ Archived the current route and progress as **${label}** and cleared this server. Run **/rtw_setup** to load the new route.`
       );
+      return;
+    }
+
+    if (interaction.commandName === "rtw_post_intro") {
+      await interaction.deferReply({ flags: 64 });
+
+      const photos = RTW2_INTRO_PARAGRAPHS.map((_, i) => interaction.options.getAttachment(`photo_${i + 1}`, true));
+
+      const settings = getGuildSettings(guildId);
+      const targetCh = settings.announce_channel_id
+        ? await client.channels.fetch(settings.announce_channel_id).catch(() => null)
+        : interaction.channel || (await client.channels.fetch(interaction.channelId).catch(() => null));
+
+      if (!targetCh) {
+        await interaction.editReply("⚠️ Couldn't resolve a channel to post in.");
+        return;
+      }
+
+      let firstMessage = null;
+      for (let i = 0; i < RTW2_INTRO_PARAGRAPHS.length; i++) {
+        const msg = await targetCh.send({ content: RTW2_INTRO_PARAGRAPHS[i], files: [photos[i].url] });
+        if (i === 0) firstMessage = msg;
+      }
+
+      if (firstMessage) await firstMessage.pin().catch(() => null);
+
+      await interaction.editReply(`✅ Posted the RTW2 intro (${RTW2_INTRO_PARAGRAPHS.length} messages) to ${targetCh} and pinned the first one.`);
       return;
     }
 

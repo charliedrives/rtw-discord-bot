@@ -67,6 +67,18 @@ export const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   new SlashCommandBuilder()
+    .setName("rtw_post_intro")
+    .setDescription("Admin: post the RTW2 intro story as 7 messages, one photo each, and pin the first")
+    .addAttachmentOption(o => o.setName("photo_1").setDescription("Photo for message 1 (Pacific/Oceania)").setRequired(true))
+    .addAttachmentOption(o => o.setName("photo_2").setDescription("Photo for message 2 (Indian Ocean)").setRequired(true))
+    .addAttachmentOption(o => o.setName("photo_3").setDescription("Photo for message 3 (Africa)").setRequired(true))
+    .addAttachmentOption(o => o.setName("photo_4").setDescription("Photo for message 4 (Ascension Island)").setRequired(true))
+    .addAttachmentOption(o => o.setName("photo_5").setDescription("Photo for message 5 (South America pt.1)").setRequired(true))
+    .addAttachmentOption(o => o.setName("photo_6").setDescription("Photo for message 6 (South America pt.2)").setRequired(true))
+    .addAttachmentOption(o => o.setName("photo_7").setDescription("Photo for message 7 (Caribbean/Central America)").setRequired(true))
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
     .setName("rtw_check")
     .setDescription("Manual strict checkoff (must match your next leg)")
     .addStringOption(o => o.setName("dep").setRequired(true).setDescription("Departure ICAO"))
