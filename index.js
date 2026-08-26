@@ -14,7 +14,7 @@ if (!process.env.DISCORD_TOKEN) {
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const db = openDb();
 
-const RTW2_LAUNCH_DATE = new Date("2026-09-01T00:00:00Z");
+const RTW2_LAUNCH_DATE = new Date("2026-08-31T23:00:00Z"); // midnight BST (UTC+1) on Sept 1, 2026
 
 const RTW2_INTRO_PARAGRAPHS = [
   `Starting at LAX, your ETOPS flying is immediately put to the test as we begin our tour of the islands. After landing in Hawaii, we set course for Auckland, routing via the Marshall Islands and Vanuatu. The demanding approach into Queenstown awaits before we turn towards Sydney and then on to spectacular Hamilton Island in Queensland. Our final Australian stop is Alice Springs, from where we head north into the Southern Asia leg, visiting Timor-Leste, Indonesia and the picturesque coastal airport of Phuket, Thailand.`,
@@ -775,7 +775,7 @@ client.on("interactionCreate", async (interaction) => {
           month: "long",
           day: "numeric",
           year: "numeric",
-          timeZone: "UTC",
+          timeZone: "Europe/London",
         });
         await interaction.editReply(`⚠️ RTW2 doesn't launch until **${launchStr}**. Hang tight!`);
         return;
