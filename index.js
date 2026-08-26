@@ -93,6 +93,53 @@ function getNextLeg(guildId, discordId) {
     .get(guildId, discordId);
 }
 
+async function loadRtwRouteForGuild(guildId, { fallbackChannel } = {}) {
+  const alreadyLoaded = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c > 0;
+
+  RTW_ROUTE.forEach((leg, i) => {
+    db.prepare(
+      `
+      INSERT OR IGNORE INTO route_legs (guild_id, leg_index, from_icao, to_icao)
+      VALUES (?,?,?,?)
+    `
+    ).run(guildId, i + 1, leg[0], leg[1]);
+  });
+
+  if (!alreadyLoaded) {
+    const [firstDep, firstArr] = RTW_ROUTE[0];
+    const announceMsg =
+      `🌍✈️ **A NEW RTW SEASON HAS LAUNCHED** ✈️🌍\n\n` +
+      `A fresh **${RTW_ROUTE.length}-leg** route is live! First leg: **${firstDep} → ${firstArr}**.\n` +
+      `Use **/rtw_next** to see your next leg, then **/rtw_complete** or **/rtw_check** to log it. Good luck out there!`;
+
+    const settings = getGuildSettings(guildId);
+    const announceCh = settings.announce_channel_id
+      ? await client.channels.fetch(settings.announce_channel_id).catch(() => null)
+      : fallbackChannel || null;
+
+    if (announceCh) {
+      await announceCh.send(announceMsg).catch(() => null);
+    } else {
+      console.warn(`[rtw_setup] loaded route for guild ${guildId} but had no channel to announce in`);
+    }
+  }
+
+  return { alreadyLoaded };
+}
+
+async function autoLaunchRTW2() {
+  if (Date.now() < RTW2_LAUNCH_DATE.getTime()) return;
+
+  const guilds = db.prepare(`SELECT guild_id FROM guild_settings`).all();
+  for (const { guild_id } of guilds) {
+    const legCount = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guild_id).c;
+    if (legCount > 0) continue;
+
+    console.log(`[auto-launch] loading RTW2 route for guild ${guild_id}`);
+    await loadRtwRouteForGuild(guild_id);
+  }
+}
+
 async function announceCompletion({ guildId, discordId, legIndex, dep, arr, source }) {
 
   const settings = getGuildSettings(guildId);
@@ -735,7 +782,10 @@ await backfillDiscordNames();
   });
 
   cron.schedule("0 9 * * 1", postWeeklyUpdates, { timezone: "Europe/London" });
-}); 
+
+  cron.schedule("*/5 * * * *", autoLaunchRTW2, { timezone: "Europe/London" });
+  await autoLaunchRTW2();
+});
 
 
 
@@ -784,33 +834,10 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      const alreadyLoaded = db.prepare(`SELECT COUNT(*) AS c FROM route_legs WHERE guild_id=?`).get(guildId).c > 0;
-
-      RTW_ROUTE.forEach((leg, i) => {
-        db.prepare(
-          `
-          INSERT OR IGNORE INTO route_legs (guild_id, leg_index, from_icao, to_icao)
-          VALUES (?,?,?,?)
-        `
-        ).run(guildId, i + 1, leg[0], leg[1]);
-      });
+      const fallbackChannel = interaction.channel || (await client.channels.fetch(interaction.channelId).catch(() => null));
+      await loadRtwRouteForGuild(guildId, { fallbackChannel });
 
       await interaction.editReply("✅ RTW route loaded.");
-
-      if (!alreadyLoaded) {
-        const [firstDep, firstArr] = RTW_ROUTE[0];
-        const announceMsg =
-          `🌍✈️ **A NEW RTW SEASON HAS LAUNCHED** ✈️🌍\n\n` +
-          `A fresh **${RTW_ROUTE.length}-leg** route is live! First leg: **${firstDep} → ${firstArr}**.\n` +
-          `Use **/rtw_next** to see your next leg, then **/rtw_complete** or **/rtw_check** to log it. Good luck out there!`;
-
-        const settings = getGuildSettings(guildId);
-        const announceCh = settings.announce_channel_id
-          ? await client.channels.fetch(settings.announce_channel_id).catch(() => null)
-          : interaction.channel || (await client.channels.fetch(interaction.channelId).catch(() => null));
-        if (announceCh) await announceCh.send(announceMsg).catch(() => null);
-      }
-
       return;
     }
 
