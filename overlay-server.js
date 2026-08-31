@@ -181,7 +181,7 @@ export function startOverlayServer(options = {}) {
         SELECT COUNT(*) AS c
         FROM route_legs
         WHERE guild_id = ?
-      `).get(guildId)?.c || 46;
+      `).get(guildId)?.c || 50;
 
       return res.json({
       guildId,
